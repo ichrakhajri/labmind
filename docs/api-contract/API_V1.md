@@ -115,3 +115,10 @@ Chaque phrase explicative citera des `source_id`. Toute phrase sans source dispo
 - Fichier déposé supprimé dès la fin du traitement ; résultats supprimés sous une durée de conservation fixée (Étape 7).
 - DELETE efface immédiatement tout.
 - Aucune URL publique permanente.
+## 9. Décisions validées (17/11/2026)
+- Polling toutes les 2 s ; arrêt sur done, error ou waiting_for_user.
+- Une seule question à la fois ; options affichées en boutons ; « je ne sais pas » toujours présent.
+- `disclaimer` fourni par l'API et affiché tel quel.
+- Conservation : suppression automatique après 1 h (à confirmer à l'Étape 7) + DELETE manuel.
+- Erreurs : {"error": {"code", "message"}} ; le frontend se base sur `code`.
+- Évolution du contrat : ajout de champs uniquement dans /v1.
