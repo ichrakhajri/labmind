@@ -1,4 +1,4 @@
-"""Identification des paramètres dans un texte extrait (regex + alias)."""
+"""Identification des paramètres dans un texte extrait (regex + alias + pages)."""
 from __future__ import annotations
 
 import difflib
@@ -136,3 +136,49 @@ def identify_parameters(text: str) -> list[dict]:
             if p:
                 out.append(p)
     return out
+
+
+def _completeness_score(param: dict) -> int:
+    score = 0
+    if param.get("value") is not None:
+        score += 1
+    if param.get("unit"):
+        score += 1
+    if param.get("reference_min") is not None or param.get("reference_max") is not None:
+        score += 1
+    return score
+
+
+def identify_parameters_from_pages(pages: list[dict]) -> list[dict]:
+    """Identifie les paramètres page par page (tableaux + texte) avec numéro de page."""
+    results: list[dict] = []
+
+    for page_info in pages:
+        page_num = page_info.get("page")
+        ocr_conf = page_info.get("ocr_confidence")
+        page_candidates: dict[str, dict] = {}
+
+        candidate_lines: list[str] = []
+        candidate_lines.extend(page_info.get("table_rows") or [])
+        candidate_lines.extend((page_info.get("text") or "").splitlines())
+
+        for raw_line in candidate_lines:
+            line = raw_line.strip()
+            if not line:
+                continue
+            parsed = parse_line(line)
+            if not parsed:
+                continue
+
+            parsed["page"] = page_num
+            if ocr_conf is not None:
+                parsed["source_ocr_confidence"] = ocr_conf
+
+            code = parsed["code"]
+            existing = page_candidates.get(code)
+            if existing is None or _completeness_score(parsed) > _completeness_score(existing):
+                page_candidates[code] = parsed
+
+        results.extend(page_candidates.values())
+
+    return results

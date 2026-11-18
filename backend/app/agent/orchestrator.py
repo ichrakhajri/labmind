@@ -137,7 +137,11 @@ def apply_user_answer(state: AgentState, answer_in: AnswerIn) -> AgentState:
         if state.extraction_method is not None
         else ExtractionMethod.pdf_text.value
     )
-    reanalyzed = analyze_parameters(state.raw_parameters, method=method_value)
+    reanalyzed = analyze_parameters(
+        state.raw_parameters,
+        method=method_value,
+        compute_confidence=True,
+    )
     state.raw_parameters = reanalyzed
     state.validated_parameters = [parameter_from_dict(item) for item in reanalyzed]
 

@@ -67,6 +67,7 @@ class AgentState(BaseModel):
     tried_pdf_text: bool = False
     tried_ocr: bool = False
     raw_text: str = ""
+    extracted_pages: list[dict] = Field(default_factory=list)
 
     raw_parameters: list[dict] = Field(default_factory=list)
     validated_parameters: list[ParameterResult] = Field(default_factory=list)

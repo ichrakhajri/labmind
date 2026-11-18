@@ -1,16 +1,11 @@
-"""Schémas de données partagés (base du contrat API v1).
-
-Les champs `confidence` et `evidence.page` existent dans le contrat mais ne sont
-pas encore calculés : ils valent None tant qu'aucun module ne les produit.
-"""
+"""Schémas de données partagés (base du contrat API v1)."""
 from __future__ import annotations
 
 from enum import Enum
-
-from pydantic import BaseModel
 from typing import Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
+
 
 class TaskStatus(str, Enum):
     received = "received"
@@ -42,7 +37,7 @@ class Reference(BaseModel):
 
 class Evidence(BaseModel):
     raw_text: str
-    page: int | None = None  # non suivi pour l'instant
+    page: int | None = None
 
 
 class ParameterResult(BaseModel):
@@ -53,7 +48,7 @@ class ParameterResult(BaseModel):
     reference: Reference
     status: ParameterStatus
     reason: str | None = None        # renseigné si status = not_analyzed
-    confidence: float | None = None  # non calculée pour l'instant
+    confidence: float | None = None  # score technique dans [0.0, 1.0] si calculé
     evidence: Evidence
 
 
@@ -72,10 +67,18 @@ def parameter_from_dict(p: dict) -> ParameterResult:
         ),
         status=p["status"],
         reason=p.get("reason"),
-        evidence=Evidence(raw_text=p.get("raw_line", "")),
+        confidence=p.get("confidence"),
+        evidence=Evidence(
+            raw_text=p.get("raw_line", ""),
+            page=p.get("page"),
+        ),
     )
-DISCLAIMER = ("Outil pédagogique : ce bilan ne remplace pas une consultation médicale "
-              "et ne constitue ni un diagnostic ni une prescription.")
+
+
+DISCLAIMER = (
+    "Outil pédagogique : ce bilan ne remplace pas une consultation médicale "
+    "et ne constitue ni un diagnostic ni une prescription."
+)
 
 
 class DocumentInfo(BaseModel):
@@ -97,7 +100,8 @@ class AnswerIn(BaseModel):
 
 
 class Source(BaseModel):
-    """À venir (Étape 3) : défini pour figer le contrat."""
+    """Référence documentaire citée dans les explications."""
+
     source_id: str
     title: str
     organisme: str
@@ -122,7 +126,7 @@ class Task(BaseModel):
     parameters: list[ParameterResult] = Field(default_factory=list)
     pending_question: PendingQuestion | None = None
     report_id: str | None = None
-    explanations: dict | None = None  # à venir (Étape 3)
+    explanations: dict | None = None
     sources: list[Source] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
     errors: list[ErrorInfo] = Field(default_factory=list)

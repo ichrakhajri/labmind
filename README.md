@@ -15,44 +15,38 @@ LabMind ne pose aucun diagnostic et ne prescrit aucun traitement.
     .venv\Scripts\Activate.ps1
     python -m pip install -r requirements.txt
 
-## Configuration
-Variables d'environnement optionnelles (voir `backend/.env.example`) :
-`LABMIND_TESSERACT_CMD`, `LABMIND_OCR_LANG`, `LABMIND_DATA_DIR`, `LABMIND_MAX_UPLOAD_BYTES`,
-`LABMIND_OLLAMA_URL`, `LABMIND_LLM_MODEL`.
-
-## Tests
+## Tests, démo et évaluation
     cd backend
     python -m pytest -v
+    python scripts\demo_agent_trace.py
+    python scripts\generate_eval_samples.py
+    python scripts\run_evaluation.py
 
 ## Structure
     backend/app/core/            configuration
-    backend/app/extraction/      PDF (texte natif) et OCR Tesseract
-    backend/app/identification/  catalogue d'alias, parsing des lignes
-    backend/app/validation/      contrôles techniques, comparaison arithmétique à la fourchette du laboratoire
+    backend/app/extraction/      PDF (texte + tableaux par page) et OCR Tesseract avec confiance
+    backend/app/identification/  catalogue 6 catégories (21 paramètres), parsing et normalisation
+    backend/app/validation/      contrôles techniques, seuils unilatéraux, calcul de confiance
     backend/app/knowledge/       registre des sources, découpage en passages et index FAISS
     backend/app/generation/      client Ollama local, RAG, contrôle d'ancrage et repli neutre
+    backend/app/agent/           état, traces, outils, planificateur et boucle avec reprise utilisateur
+    backend/app/evaluation/      métriques séparées (identification, valeur, unité, référence)
     backend/app/schemas.py       schémas Pydantic (base du contrat API v1)
-    backend/scripts/             outils CLI (indexation, benchmark embeddings, test RAG local)
+    backend/scripts/             outils CLI (indexation, benchmark, démo agent, évaluation)
     backend/tests/               tests automatisés (dont garde-fou anti-système-expert)
     knowledge_corpus/            sources officielles, métadonnées et index vectoriel
-    docs/api-contract/           contrat API v1 + exemples JSON
-    docs/archive/                prototype Colab archivé (lecture seule, non conforme)
-    docs/decisions/              décisions techniques
+    evaluation/                  documents de test, vérités terrain et rapports d'évaluation
+    docs/                        contrat API v1, archive Colab et décisions techniques
 
-## État du projet (fin de l'Étape 3)
+## État du projet (fin de l'Étape 5)
 Fait :
-- Modularisation complète de la chaîne extraction -> identification -> validation.
-- Contrat API v1 rédigé et validé avec le frontend (endpoints à venir à l'Étape 6).
-- Retrait du système expert et verrouillage AST (`test_no_expert_system.py`).
-- Pipeline documentaire (`knowledge_corpus/` + chunker + FAISS + benchmark embeddings CPU).
-- Générateur RAG avec client Ollama local, contrôle d'ancrage, reformulation prudente et repli neutre.
+- Backend modulaire complet couvrant les 6 catégories (21 paramètres), sans système expert.
+- RAG local (FAISS + `multilingual-e5-small` + Ollama `qwen2.5:1.5b` + contrôle d'ancrage).
+- Agent adaptatif avec traces de décision et boucle `waiting_for_user`.
+- `detected_categories`, `evidence.page` et `confidence` calculés et exposés dans `Task`.
+- Dispositif d'évaluation séparée par champ dans `evaluation/`.
 
 Pas encore fait :
-- Collecte complète des textes institutionnels réels pour les 6 catégories dans `knowledge_corpus/sources/`.
-- Agent à outils avec boucle d'adaptation et confirmation utilisateur `waiting_for_user` (Étape 4).
-- Catalogue complet (6 catégories), benchmark OCR, jeu d'évaluation indépendant (Étape 5).
-- API FastAPI, base de données SQLite/PostgreSQL, rapport PDF, suppression des données (Étapes 6 à 8).
-
-## Dette connue
-- Tant que `knowledge_corpus/sources/` ne contient pas les fiches institutionnelles téléchargées au statut `collected`, le RAG renvoie `insufficient_sources`.
-- `confidence` et `evidence.page` ne sont pas encore calculés (valeurs `null`).
+- API FastAPI complète + gestion asynchrone des tâches (Étape 6).
+- Base de données SQLite/PostgreSQL et durée de conservation / suppression vérifiable (Étape 7).
+- Génération du rapport PDF final LabMind, sécurité et intégration finale frontend (Étapes 8 à 10).

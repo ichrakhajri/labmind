@@ -1,8 +1,7 @@
 """Contrôle technique d'une liste de paramètres extraits.
 
-Reprend la logique de run_agent (notebook, cellule #14), sans génération de texte.
-Aucune interprétation médicale : uniquement présence des champs, cohérence
-et position de la valeur par rapport à la fourchette du laboratoire.
+Aucune interprétation médicale : uniquement présence des champs, cohérence,
+position arithmétique et calcul transparent du score de confiance technique.
 """
 from __future__ import annotations
 
@@ -19,11 +18,34 @@ REASONS = {
 }
 
 
-def analyze_parameters(params: list[dict], method: str = "pdf_text") -> list[dict]:
-    """Retourne une copie des paramètres enrichie de `status`, `reason_code`, `reason`.
+def compute_parameter_confidence(param: dict, method: str) -> float:
+    """Calcule un indice de confiance technique dans [0.0, 1.0]."""
+    if method == "ocr":
+        ocr_score = param.get("source_ocr_confidence")
+        base = float(ocr_score) if ocr_score is not None else 0.70
+    else:
+        base = 0.95
 
-    Un paramètre non fiable est marqué "not_analyzed" : il n'est jamais deviné.
-    """
+    status = param.get("status")
+    reason_code = param.get("reason_code")
+
+    if status == "not_analyzed":
+        if reason_code in ("missing_value", "implausible", "invalid_reference"):
+            base = min(base, 0.35)
+        else:
+            base = min(base, 0.55)
+    elif param.get("reference_min") is None and param.get("reference_max") is None:
+        base = max(0.0, base - 0.10)
+
+    return round(max(0.0, min(1.0, base)), 2)
+
+
+def analyze_parameters(
+    params: list[dict],
+    method: str = "pdf_text",
+    compute_confidence: bool = False,
+) -> list[dict]:
+    """Retourne une copie des paramètres enrichie de `status`, `reason_code`, `reason`."""
     known = [dict(p) for p in params if p["code"] in ACCEPTED_UNITS]
 
     blocked: dict[str, str] = {}
@@ -32,7 +54,7 @@ def analyze_parameters(params: list[dict], method: str = "pdf_text") -> list[dic
             if issue["blocking"]:
                 blocked.setdefault(p["code"], issue["issue"])
 
-    if method == "ocr":  # garde-fou OCR (ex. virgule perdue : 128 au lieu de 1,28)
+    if method == "ocr":
         for p in known:
             if p["code"] not in blocked and not plausible(p):
                 blocked[p["code"]] = "implausible"
@@ -47,4 +69,8 @@ def analyze_parameters(params: list[dict], method: str = "pdf_text") -> list[dic
             p["status"] = classify(p["value"], p["reference_min"], p["reference_max"])
             p["reason_code"] = None
             p["reason"] = None
+
+        if compute_confidence or "page" in p or "source_ocr_confidence" in p:
+            p["confidence"] = compute_parameter_confidence(p, method=method)
+
     return known

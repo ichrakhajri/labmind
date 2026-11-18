@@ -4,10 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-import pdfplumber
 from pydantic import BaseModel
 
-from app.extraction.extractor import extract_document
+from app.extraction.extractor import extract_document, extract_pdf_native_pages
 from app.generation import (
     ExplanationGenerator,
     GenerationRequest,
@@ -15,7 +14,7 @@ from app.generation import (
 )
 from app.generation.interface import RetrievedPassage
 from app.identification.catalog import ACCEPTED_UNITS
-from app.identification.parser import identify_parameters
+from app.identification.parser import identify_parameters, identify_parameters_from_pages
 from app.knowledge.retriever import FaissKnowledgeIndex
 from app.schemas import (
     ExtractionMethod,
@@ -39,17 +38,11 @@ class ToolExecutionResult(BaseModel):
     summary: str
 
 
-def _default_pdf_text_reader(path: Path) -> str:
-    with pdfplumber.open(path) as pdf:
-        pages_text = [page.extract_text() or "" for page in pdf.pages]
-    return "\n".join(pages_text).strip()
-
-
 def run_extract_pdf_text(
     state: AgentState,
     pdf_reader: Callable[[Path], str] | None = None,
 ) -> ToolExecutionResult:
-    """Tente uniquement une lecture texte natif sur un fichier PDF."""
+    """Tente uniquement une lecture texte natif (avec tableaux) page par page."""
     state.tried_pdf_text = True
     path = Path(state.file_path)
 
@@ -59,9 +52,15 @@ def run_extract_pdf_text(
             summary="Le fichier n'est pas un PDF natif : une lecture OCR est requise.",
         )
 
-    reader = pdf_reader or _default_pdf_text_reader
     try:
-        text = reader(path).strip()
+        if pdf_reader is not None:
+            text = pdf_reader(path).strip()
+            pages = [
+                {"page": 1, "text": text, "table_rows": [], "ocr_confidence": None}
+            ]
+        else:
+            pages = extract_pdf_native_pages(path)
+            text = "\n".join(p["text"] for p in pages).strip()
     except Exception as exc:
         return ToolExecutionResult(
             success=False,
@@ -70,16 +69,18 @@ def run_extract_pdf_text(
 
     if len(text) < MIN_NATIVE_PDF_CHARS:
         state.raw_text = ""
+        state.extracted_pages = []
         return ToolExecutionResult(
             success=False,
             summary="PDF sans couche texte exploitable (probable scan) : bascule OCR nécessaire.",
         )
 
     state.raw_text = text
+    state.extracted_pages = pages
     state.extraction_method = ExtractionMethod.pdf_text
     return ToolExecutionResult(
         success=True,
-        summary=f"Texte natif PDF extrait ({len(text)} caractères).",
+        summary=f"Texte natif PDF extrait sur {len(pages)} page(s) ({len(text)} caractères).",
     )
 
 
@@ -87,7 +88,7 @@ def run_extract_ocr(
     state: AgentState,
     ocr_reader: Callable[[Path], dict] | None = None,
 ) -> ToolExecutionResult:
-    """Exécute l'extraction par OCR (ou extract_document) sur image ou PDF scanné."""
+    """Exécute l'extraction par OCR sur image ou PDF scanné."""
     state.tried_ocr = True
     path = Path(state.file_path)
     reader = ocr_reader or extract_document
@@ -107,11 +108,20 @@ def run_extract_ocr(
             summary="Aucun texte exploitable obtenu après OCR.",
         )
 
+    pages = result.get("pages") or [
+        {
+            "page": 1,
+            "text": text,
+            "table_rows": [],
+            "ocr_confidence": result.get("ocr_confidence"),
+        }
+    ]
     state.raw_text = text
+    state.extracted_pages = pages
     state.extraction_method = ExtractionMethod.ocr
     return ToolExecutionResult(
         success=True,
-        summary=f"Texte OCR extrait ({len(text)} caractères).",
+        summary=f"Texte OCR extrait sur {len(pages)} page(s) ({len(text)} caractères).",
     )
 
 
@@ -153,7 +163,7 @@ def _build_uncertainties(analyzed: list[dict]) -> list[UncertaintyItem]:
 
 
 def run_identify_and_validate(state: AgentState) -> ToolExecutionResult:
-    """Identifie les paramètres depuis `raw_text`, les valide techniquement et repère les incertitudes."""
+    """Identifie les paramètres depuis les pages extraites et les valide techniquement."""
     if not state.raw_text.strip():
         return ToolExecutionResult(
             success=False,
@@ -166,8 +176,16 @@ def run_identify_and_validate(state: AgentState) -> ToolExecutionResult:
         else ExtractionMethod.pdf_text.value
     )
 
-    identified = identify_parameters(state.raw_text)
-    analyzed = analyze_parameters(identified, method=method_value)
+    if state.extracted_pages:
+        identified = identify_parameters_from_pages(state.extracted_pages)
+    else:
+        identified = identify_parameters(state.raw_text)
+
+    analyzed = analyze_parameters(
+        identified,
+        method=method_value,
+        compute_confidence=True,
+    )
 
     state.raw_parameters = analyzed
     state.validated_parameters = [parameter_from_dict(item) for item in analyzed]
