@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.generation.interface import GenerationResult, RetrievedPassage
+from app.identification.catalog import get_categories_for_codes
 from app.schemas import (
     DISCLAIMER,
     DocumentInfo,
@@ -122,6 +123,9 @@ class AgentState(BaseModel):
             if self.generation_result is not None
             else DISCLAIMER
         )
+        detected_categories = get_categories_for_codes(
+            [p.code for p in self.validated_parameters]
+        )
 
         return Task(
             task_id=self.task_id,
@@ -130,7 +134,7 @@ class AgentState(BaseModel):
                 filename=self.filename,
                 extraction_method=self.extraction_method,
             ),
-            detected_categories=[],
+            detected_categories=detected_categories,
             parameters=self.validated_parameters,
             pending_question=self.pending_question,
             report_id=report_id if self.status == TaskStatus.done else None,

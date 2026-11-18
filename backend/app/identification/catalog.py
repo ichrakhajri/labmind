@@ -1,34 +1,121 @@
-"""Catalogue technique : alias de noms et unités rencontrées.
+"""Catalogue technique : alias de noms, catégories et unités rencontrées.
 
 Aucune valeur de référence médicale ici : les fourchettes proviennent
 uniquement du document du laboratoire.
 """
+from __future__ import annotations
 
-ALIASES = {
+CATEGORY_BY_CODE: dict[str, str] = {
+    # 1. NFS
+    "HGB": "NFS",
+    "WBC": "NFS",
+    "RBC": "NFS",
+    "PLT": "NFS",
+    "HCT": "NFS",
+    # 2. Bilan martial
+    "FER": "Bilan martial",
+    "FERR": "Bilan martial",
+    "TRANSF": "Bilan martial",
+    # 3. Bilan glycémique
+    "GLY": "Bilan glycémique",
+    "HBA1C": "Bilan glycémique",
+    # 4. Bilan lipidique
+    "CHOL": "Bilan lipidique",
+    "HDL": "Bilan lipidique",
+    "LDL": "Bilan lipidique",
+    "TG": "Bilan lipidique",
+    # 5. Bilan hépatique
+    "ALAT": "Bilan hépatique",
+    "ASAT": "Bilan hépatique",
+    "GGT": "Bilan hépatique",
+    "BILI": "Bilan hépatique",
+    # 6. Bilan rénal
+    "CREAT": "Bilan rénal",
+    "UREE": "Bilan rénal",
+    "DFG": "Bilan rénal",
+}
+
+ALIASES: dict[str, list[str]] = {
+    # NFS
     "HGB": ["Hémoglobine", "HGB", "Hb"],
     "WBC": ["Globules blancs", "Leucocytes", "WBC"],
     "RBC": ["Globules rouges", "Hématies", "RBC"],
     "PLT": ["Plaquettes", "PLT"],
     "HCT": ["Hématocrite", "HCT"],
+    # Bilan martial
+    "FER": ["Fer sérique", "Fer", "Siderémie"],
+    "FERR": ["Ferritine", "Ferritinémie"],
+    "TRANSF": ["Transferrine", "Sidérophiline"],
+    # Bilan glycémique
     "GLY": ["Glycémie à jeun", "Glycémie", "Glucose"],
+    "HBA1C": ["Hémoglobine glyquée (HbA1c)", "Hémoglobine glyquée", "HbA1c", "HbA1C"],
+    # Bilan lipidique
     "CHOL": ["Cholestérol total", "Cholestérol"],
-    "HDL": ["Cholestérol HDL", "HDL"],
-    "LDL": ["Cholestérol LDL", "LDL"],
+    "HDL": ["Cholestérol HDL", "HDL-cholestérol", "HDL"],
+    "LDL": ["Cholestérol LDL", "LDL-cholestérol", "LDL"],
     "TG": ["Triglycérides", "TG"],
+    # Bilan hépatique
+    "ALAT": ["ALAT (TGP)", "ALAT (GPT)", "Alanine aminotransférase", "ALAT", "TGP", "GPT"],
+    "ASAT": ["ASAT (TGO)", "ASAT (GOT)", "Aspartate aminotransférase", "ASAT", "TGO", "GOT"],
+    "GGT": ["Gamma-GT", "Gamma GT", "Gamma-glutamyl transférase", "GGT"],
+    "BILI": ["Bilirubine totale", "Bilirubine"],
+    # Bilan rénal
+    "CREAT": ["Créatinine sérique", "Créatininémie", "Créatinine", "CREAT"],
+    "UREE": ["Urée sanguine", "Urée", "Azotémie"],
+    "DFG": ["DFG estimé (CKD-EPI)", "DFG (CKD-EPI)", "Débit de filtration glomérulaire", "DFG", "eDFG"],
 }
 
-KNOWN_UNITS = ["g/dL", "g/L", "mg/dL", "%", "10^3/µL", "10^6/µL"]
+KNOWN_UNITS: list[str] = [
+    "g/dL",
+    "g/L",
+    "mg/dL",
+    "mg/L",
+    "µg/dL",
+    "µg/L",
+    "ng/mL",
+    "µmol/L",
+    "mmol/L",
+    "mmol/mol",
+    "%",
+    "10^3/µL",
+    "10^6/µL",
+    "U/L",
+    "UI/L",
+    "mL/min/1.73m²",
+    "mL/min",
+]
 
 # Unités acceptées par paramètre (validation technique du format, pas d'interprétation)
-ACCEPTED_UNITS = {
+ACCEPTED_UNITS: dict[str, list[str]] = {
     "HGB": ["g/dL", "g/L"],
     "WBC": ["10^3/µL"],
     "RBC": ["10^6/µL"],
     "PLT": ["10^3/µL"],
     "HCT": ["%"],
-    "GLY": ["g/L", "mg/dL"],
-    "CHOL": ["g/L", "mg/dL"],
-    "HDL": ["g/L", "mg/dL"],
-    "LDL": ["g/L", "mg/dL"],
-    "TG": ["g/L", "mg/dL"],
+    "FER": ["µmol/L", "mg/L", "µg/dL"],
+    "FERR": ["ng/mL", "µg/L"],
+    "TRANSF": ["g/L", "mg/dL"],
+    "GLY": ["g/L", "mg/dL", "mmol/L"],
+    "HBA1C": ["%", "mmol/mol"],
+    "CHOL": ["g/L", "mg/dL", "mmol/L"],
+    "HDL": ["g/L", "mg/dL", "mmol/L"],
+    "LDL": ["g/L", "mg/dL", "mmol/L"],
+    "TG": ["g/L", "mg/dL", "mmol/L"],
+    "ALAT": ["U/L", "UI/L"],
+    "ASAT": ["U/L", "UI/L"],
+    "GGT": ["U/L", "UI/L"],
+    "BILI": ["mg/L", "mg/dL", "µmol/L"],
+    "CREAT": ["mg/L", "mg/dL", "µmol/L"],
+    "UREE": ["g/L", "mmol/L", "mg/dL"],
+    "DFG": ["mL/min/1.73m²", "mL/min"],
 }
+
+
+def get_categories_for_codes(codes: list[str]) -> list[str]:
+    """Retourne les catégories uniques détectées, dans l'ordre d'apparition."""
+    categories: list[str] = []
+    for code in codes:
+        cat = CATEGORY_BY_CODE.get(code)
+        if cat and cat not in categories:
+            categories.append(cat)
+    return categories

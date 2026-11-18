@@ -1,7 +1,4 @@
-"""Identification des paramètres dans un texte extrait (regex + alias).
-
-Code repris du notebook (cellule #6) sans changement de logique.
-"""
+"""Identification des paramètres dans un texte extrait (regex + alias)."""
 from __future__ import annotations
 
 import difflib
@@ -12,6 +9,16 @@ from .catalog import ALIASES, KNOWN_UNITS
 
 NUM = r"\d+(?:[.,]\d+)?"
 RANGE_RE = re.compile(rf"({NUM})\s*[-–—]\s*({NUM})")
+UPPER_BOUND_RE = re.compile(
+    rf"\(?\s*(?:r[ée]f\.?\s*:?\s*)?(?:<=?|inf[ée]rieur[e]?\s+[àa])\s*({NUM})"
+    rf"(?:\s*[a-zA-Zµμ/%0-9^.,²]+)?\s*\)?",
+    re.I,
+)
+LOWER_BOUND_RE = re.compile(
+    rf"\(?\s*(?:r[ée]f\.?\s*:?\s*)?(?:>=?|sup[ée]rieur[e]?\s+[àa])\s*({NUM})"
+    rf"(?:\s*[a-zA-Zµμ/%0-9^.,²]+)?\s*\)?",
+    re.I,
+)
 NUM_RE = re.compile(NUM)
 
 
@@ -31,52 +38,87 @@ def to_float(s: str) -> float:
 
 
 def normalize_unit(u: str | None) -> str | None:
-    """Nettoie l'unité et corrige les erreurs OCR (10%3/uL -> 10^3/µL)."""
+    """Nettoie l'unité et corrige les variantes typographiques et erreurs OCR."""
     if not u:
         return None
     u = u.strip().strip("()[]:;|_")
     u = re.sub(r"\s+", "", u).replace("μ", "µ")
     if not u:
         return None
-    low = u.lower().replace("µ", "u")
+
+    low = u.lower().replace("µ", "u").replace(",", ".")
+    if re.match(r"^ml/min/1\.73m(?:\^?2|²)$", low):
+        return "mL/min/1.73m²"
+
     exact = {k.lower().replace("µ", "u"): k for k in KNOWN_UNITS}
     if low in exact:
         return exact[low]
+
     m = re.match(r"^10\W?([36])/\w*l$", low)
     if m:
         return f"10^{m.group(1)}/µL"
-    cand = difflib.get_close_matches(low, list(exact), n=1, cutoff=0.7)
+
+    cand = difflib.get_close_matches(low, list(exact), n=1, cutoff=0.75)
     return exact[cand[0]] if cand else u
 
 
-def match_alias(line: str):
-    n = _norm(line)
+def match_alias(line: str) -> tuple[str | None, str | None]:
+    """Retourne (code, texte_brut_correspondant) si un alias ouvre la ligne."""
+    stripped = line.lstrip()
+    norm_chars: list[str] = []
+    orig_end_indices: list[int] = []
+
+    for idx, ch in enumerate(stripped):
+        decomposed = unicodedata.normalize("NFD", ch.lower())
+        for sub in decomposed:
+            if unicodedata.category(sub) != "Mn":
+                norm_chars.append(sub)
+                orig_end_indices.append(idx + 1)
+
+    norm_line = "".join(norm_chars)
     for alias, code in _ALIAS_LIST:
-        if re.match(rf"^{re.escape(alias)}(?=[\s:;|]|$)", n):
-            return code, alias
+        if re.match(rf"^{re.escape(alias)}(?=[\s:;|(\[]|$)", norm_line):
+            raw_end = orig_end_indices[len(alias) - 1]
+            return code, stripped[:raw_end]
     return None, None
 
 
 def parse_line(line: str) -> dict | None:
-    code, alias = match_alias(line)
-    if code is None:
+    code, raw_alias = match_alias(line)
+    if code is None or raw_alias is None:
         return None
-    rest = line[len(alias):].lstrip(" :;|") if len(line) >= len(alias) else ""
+
+    rest = line.lstrip()[len(raw_alias) :].lstrip(" :;|")
     ref_min = ref_max = None
+
     m = RANGE_RE.search(rest)
     if m:
         ref_min, ref_max = to_float(m.group(1)), to_float(m.group(2))
-        rest = rest[:m.start()] + " " + rest[m.end():]
+        rest = rest[: m.start()] + " " + rest[m.end() :]
+    else:
+        m_upper = UPPER_BOUND_RE.search(rest)
+        if m_upper:
+            ref_max = to_float(m_upper.group(1))
+            rest = rest[: m_upper.start()] + " " + rest[m_upper.end() :]
+        else:
+            m_lower = LOWER_BOUND_RE.search(rest)
+            if m_lower:
+                ref_min = to_float(m_lower.group(1))
+                rest = rest[: m_lower.start()] + " " + rest[m_lower.end() :]
+
     rest = re.sub(r"\(\s*r[ée]f\.?\s*:?\s*\)", " ", rest, flags=re.I)
+    rest = re.sub(r"\(\s*\)", " ", rest)
+
     mv = NUM_RE.search(rest)
     if not mv:
         return None
+
     value = to_float(mv.group(0))
-    unit_txt = (rest[:mv.start()] + " " + rest[mv.end():]).strip()
+    unit_txt = (rest[: mv.start()] + " " + rest[mv.end() :]).strip()
     unit = normalize_unit(unit_txt) if unit_txt else None
     return {
         "code": code,
-        "name_printed": line[:len(alias)].strip(),
+        "name_printed": raw_alias.strip(),
         "value": value,
         "unit": unit,
         "reference_min": ref_min,
