@@ -7,6 +7,11 @@ from .fallback import (
     InsufficientSourcesGenerator,
     build_unavailable_explanation,
 )
+from .grounding import (
+    GroundingCheckResult,
+    check_explanation_grounding,
+    check_safety_compliance,
+)
 from .interface import (
     ExplanationGenerator,
     ExplanationStatus,
@@ -38,6 +43,7 @@ __all__ = [
     "GROUNDED_SUMMARY",
     "GenerationRequest",
     "GenerationResult",
+    "GroundingCheckResult",
     "INSUFFICIENT_SOURCES_PARAMETER_MESSAGE",
     "INSUFFICIENT_SOURCES_SUMMARY",
     "InsufficientSourcesGenerator",
@@ -50,6 +56,8 @@ __all__ = [
     "RetrievedPassage",
     "build_parameter_prompt",
     "build_unavailable_explanation",
+    "check_explanation_grounding",
+    "check_safety_compliance",
     "find_citation_errors",
     "parse_llm_explanation",
 ]

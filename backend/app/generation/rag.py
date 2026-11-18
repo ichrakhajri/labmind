@@ -3,7 +3,8 @@
 Contraintes strictes :
 - Aucun diagnostic, aucune prescription, aucune recommandation codée en dur.
 - Uniquement basé sur les passages documentaires fournis dans `GenerationRequest`.
-- Toute citation inventée ou réponse invalide déclenche un repli neutre.
+- Chaque réponse est vérifiée par `check_explanation_grounding`.
+- En cas d'échec après reformulation, bascule vers un repli neutre.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from .fallback import (
     InsufficientSourcesGenerator,
     build_unavailable_explanation,
 )
+from .grounding import check_explanation_grounding
 from .interface import (
     ExplanationStatus,
     GenerationRequest,
@@ -36,7 +38,8 @@ SYSTEM_PROMPT = (
     "3. Cite dans source_ids uniquement les identifiants exacts des extraits utilisés.\n"
     "4. Ne pose jamais de diagnostic et ne recommande jamais de médicament, "
     "traitement ou dose.\n"
-    "5. Si les extraits fournis ne suffisent pas à expliquer le paramètre de façon "
+    "5. N'invente aucun chiffre ou seuil absent des extraits fournis.\n"
+    "6. Si les extraits fournis ne suffisent pas à expliquer le paramètre de façon "
     'fiable et neutre, retourne status="insufficient_sources" et source_ids=[].'
 )
 
@@ -141,7 +144,6 @@ def parse_llm_explanation(
     if not isinstance(raw_source_ids, list):
         return build_unavailable_explanation(parameter)
 
-    # Garde uniquement les source_id connus dans les passages fournis (sans doublons)
     valid_ids: list[str] = []
     for item in raw_source_ids:
         if isinstance(item, str) and item in allowed_source_ids and item not in valid_ids:
@@ -159,16 +161,60 @@ def parse_llm_explanation(
 
 
 class RagExplanationGenerator:
-    """Générateur RAG implémentant le protocole `ExplanationGenerator`."""
+    """Générateur RAG avec vérification d'ancrage et reformulation prudente."""
 
     def __init__(
         self,
         llm_client: LocalLLMClient,
         system_prompt: str = SYSTEM_PROMPT,
+        min_overlap_ratio: float = 0.25,
+        max_retries: int = 1,
     ) -> None:
         self.llm_client = llm_client
         self.system_prompt = system_prompt
+        self.min_overlap_ratio = min_overlap_ratio
+        self.max_retries = max(0, max_retries)
         self._fallback = InsufficientSourcesGenerator()
+
+    def _generate_for_parameter(
+        self,
+        parameter: ParameterResult,
+        passages: list[RetrievedPassage],
+        allowed_ids: set[str],
+    ) -> ParameterExplanation:
+        base_prompt = build_parameter_prompt(parameter, passages)
+        prompt = base_prompt
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                raw_response = self.llm_client.generate(self.system_prompt, prompt)
+            except LocalLLMError:
+                return build_unavailable_explanation(parameter)
+
+            explanation = parse_llm_explanation(parameter, raw_response, allowed_ids)
+            if explanation.status != ExplanationStatus.grounded:
+                return explanation
+
+            check = check_explanation_grounding(
+                explanation=explanation,
+                parameter=parameter,
+                passages=passages,
+                min_overlap_ratio=self.min_overlap_ratio,
+            )
+            if check.is_grounded:
+                return explanation
+
+            if attempt < self.max_retries:
+                reasons_text = " ; ".join(check.reasons)
+                prompt = (
+                    f"{base_prompt}\n\n"
+                    f"CORRECTION OBLIGATOIRE : ta tentative précédente a été rejetée "
+                    f"({reasons_text}). Reformule uniquement avec les faits et termes "
+                    f"présents dans les extraits fournis, sans chiffre non sourcé, ou "
+                    f'retourne status="insufficient_sources" et source_ids=[].'
+                )
+
+        return build_unavailable_explanation(parameter)
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         if not request.parameters or not request.passages:
@@ -188,14 +234,9 @@ class RagExplanationGenerator:
                 explanations.append(build_unavailable_explanation(parameter))
                 continue
 
-            prompt = build_parameter_prompt(parameter, request.passages)
-            try:
-                raw_response = self.llm_client.generate(self.system_prompt, prompt)
-            except LocalLLMError:
-                explanations.append(build_unavailable_explanation(parameter))
-                continue
-
-            explanation = parse_llm_explanation(parameter, raw_response, allowed_ids)
+            explanation = self._generate_for_parameter(
+                parameter, request.passages, allowed_ids
+            )
             explanations.append(explanation)
 
             for sid in explanation.source_ids:
