@@ -14,6 +14,8 @@ from pathlib import Path
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACKEND_DIR.parent
 
+ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (".pdf", ".png", ".jpg", ".jpeg")
+
 # Emplacements habituels de Tesseract sous Windows
 _WINDOWS_TESSERACT_CANDIDATES = [
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
@@ -29,6 +31,13 @@ def _env_int(name: str, default: int) -> int:
         return int(raw)
     except ValueError as exc:
         raise ValueError(f"Variable {name} invalide : entier attendu, reçu {raw!r}") from exc
+
+
+def _env_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
 def _find_tesseract() -> str | None:
@@ -57,8 +66,20 @@ class Settings:
     min_pdf_text_chars: int = field(default_factory=lambda: _env_int("LABMIND_MIN_PDF_CHARS", 30))
     ocr_dpi: int = field(default_factory=lambda: _env_int("LABMIND_OCR_DPI", 200))
 
-    # Limites de fichiers (utilisées plus tard par l'API)
+    # Limites et sécurité de l'API
     max_upload_bytes: int = field(default_factory=lambda: _env_int("LABMIND_MAX_UPLOAD_BYTES", 10_000_000))
+    allowed_extensions: tuple[str, ...] = ALLOWED_UPLOAD_EXTENSIONS
+    cors_origins: tuple[str, ...] = field(
+        default_factory=lambda: _env_csv(
+            "LABMIND_CORS_ORIGINS",
+            (
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+            ),
+        )
+    )
 
     @property
     def uploads_dir(self) -> Path:
