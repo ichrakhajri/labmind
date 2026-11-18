@@ -7,3 +7,5 @@ Pillow>=10.0
 reportlab>=4.0
 pytest>=8.0
 pydantic>=2.6
+faiss-cpu>=1.8
+sentence-transformers>=3.0
