@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "sources": [
+    {
+      "source_id": "plan-ameli-nfs",
+      "title": "Comprendre les résultats d'un hémogramme (NFS)",
+      "organisme": "Assurance Maladie (ameli.fr)",
+      "url": "https://www.ameli.fr/",
+      "published_date": null,
+      "categories": ["nfs"],
+      "themes": ["hemoglobine", "globules_blancs", "globules_rouges", "plaquettes", "hematocrite"],
+      "reuse_conditions": "À vérifier sur les mentions légales du document avant collecte",
+      "local_filename": null,
+      "status": "pending_collection",
+      "notes": "Rechercher la fiche ameli.fr sur la prise de sang et l'hémogramme, copier l'URL exacte."
+    },
+    {
+      "source_id": "plan-inserm-fer-anemie",
+      "title": "Dossier métabolisme du fer et anémie",
+      "organisme": "Inserm",
+      "url": "https://www.inserm.fr/",
+      "published_date": null,
+      "categories": ["bilan_martial", "nfs"],
+      "themes": ["fer", "ferritine", "transferrine", "hemoglobine"],
+      "reuse_conditions": "À vérifier sur la page dossier Inserm avant collecte",
+      "local_filename": null,
+      "status": "pending_collection",
+      "notes": "Rechercher le dossier Inserm correspondant et vérifier la date de mise à jour."
+    },
+    {
+      "source_id": "plan-ameli-glycemie",
+      "title": "Glycémie et HbA1c : comprendre son bilan glycémique",
+      "organisme": "Assurance Maladie (ameli.fr)",
+      "url": "https://www.ameli.fr/",
+      "published_date": null,
+      "categories": ["bilan_glycemique"],
+      "themes": ["glycemie", "hba1c"],
+      "reuse_conditions": "À vérifier sur les mentions légales du document avant collecte",
+      "local_filename": null,
+      "status": "pending_collection",
+      "notes": "Collecter les fiches officielles sur la glycémie à jeun et le suivi par HbA1c."
+    },
+    {
+      "source_id": "plan-ameli-bilan-lipidique",
+      "title": "Comprendre son bilan lipidique (cholestérol, HDL, LDL, triglycérides)",
+      "organisme": "Assurance Maladie (ameli.fr)",
+      "url": "https://www.ameli.fr/",
+      "published_date": null,
+      "categories": ["bilan_lipidique"],
+      "themes": ["cholesterol_total", "hdl", "ldl", "triglycerides"],
+      "reuse_conditions": "À vérifier sur les mentions légales du document avant collecte",
+      "local_filename": null,
+      "status": "pending_collection",
+      "notes": "Inclure également les repères pédagogiques de la HAS sur les dyslipidémies si librement réutilisables."
+    },
+    {
+      "source_id": "plan-has-bilan-renal",
+      "title": "Évaluation de la fonction rénale : créatinine et DFG estimé",
+      "organisme": "Haute Autorité de Santé (HAS)",
+      "url": "https://www.has-sante.fr/",
+      "published_date": null,
+      "categories": ["bilan_renal"],
+      "themes": ["creatinine", "uree", "dfg"],
+      "reuse_conditions": "À vérifier sur la fiche HAS avant collecte",
+      "local_filename": null,
+      "status": "pending_collection",
+      "notes": "Compléter si besoin avec une fiche pédagogique ameli.fr sur la créatininémie et l'urée."
+    },
+    {
+      "source_id": "plan-bilan-hepatique",
+      "title": "Bilan hépatique : ALAT, ASAT, GGT et bilirubine",
+      "organisme": "Assurance Maladie / HAS",
+      "url": "https://www.has-sante.fr/",
+      "published_date": null,
+      "categories": ["bilan_hepatique"],
+      "themes": ["alat", "asat", "ggt", "bilirubine"],
+      "reuse_conditions": "À vérifier sur la source officielle sélectionnée avant collecte",
+      "local_filename": null,
+      "status": "pending_collection",
+      "notes": "Vérifier fiche HAS ou société savante d'hépatologie (AFEF) / ameli.fr."
+    },
+    {
+      "source_id": "plan-anses-reperes-nutritionnels",
+      "title": "Repères nutritionnels, alimentation et activité physique (PNNS)",
+      "organisme": "ANSES",
+      "url": "https://www.anses.fr/",
+      "published_date": null,
+      "categories": ["hygiene_de_vie"],
+      "themes": ["alimentation", "activite_physique", "sedentarite"],
+      "reuse_conditions": "À vérifier sur l'avis ou dossier ANSES / Santé publique France",
+      "local_filename": null,
+      "status": "pending_collection",
+      "notes": "Servira pour les informations générales d'alimentation et d'hygiène de vie sourcées."
+    }
+  ]
+}
