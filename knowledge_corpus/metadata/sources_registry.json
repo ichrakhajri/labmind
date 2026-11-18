@@ -2,17 +2,39 @@
   "version": "1.0",
   "sources": [
     {
-      "source_id": "plan-ameli-nfs",
-      "title": "Comprendre les résultats d'un hémogramme (NFS)",
+      "source_id": "ameli-prise-sang-2026",
+      "title": "Comment lire les résultats d'une prise de sang ?",
       "organisme": "Assurance Maladie (ameli.fr)",
-      "url": "https://www.ameli.fr/",
-      "published_date": null,
-      "categories": ["nfs"],
-      "themes": ["hemoglobine", "globules_blancs", "globules_rouges", "plaquettes", "hematocrite"],
-      "reuse_conditions": "À vérifier sur les mentions légales du document avant collecte",
-      "local_filename": null,
-      "status": "pending_collection",
-      "notes": "Rechercher la fiche ameli.fr sur la prise de sang et l'hémogramme, copier l'URL exacte."
+      "url": "https://www.ameli.fr/assure/sante/examen/analyse/lire-resultats-prise-sang",
+      "published_date": "2026-01-08",
+      "categories": [
+        "nfs",
+        "bilan_martial",
+        "bilan_glycemique",
+        "bilan_lipidique",
+        "bilan_hepatique",
+        "bilan_renal"
+      ],
+      "themes": [
+        "hemoglobine",
+        "ferritine",
+        "glycemie",
+        "cholesterol_total",
+        "hdl",
+        "ldl",
+        "triglycerides",
+        "creatinine",
+        "uree",
+        "dfg",
+        "alat",
+        "asat",
+        "ggt",
+        "bilirubine"
+      ],
+      "reuse_conditions": "Contenu informatif public Assurance Maladie (ameli.fr), cité avec lien source",
+      "local_filename": "ameli_prise_de_sang.txt",
+      "status": "collected",
+      "notes": "Fiche officielle ameli.fr complète (sections dépliées)."
     },
     {
       "source_id": "plan-inserm-fer-anemie",
