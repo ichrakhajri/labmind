@@ -12,6 +12,14 @@ CATEGORY_BY_CODE: dict[str, str] = {
     "RBC": "NFS",
     "PLT": "NFS",
     "HCT": "NFS",
+    "VGM": "NFS",
+    "TCMH": "NFS",
+    "CCMH": "NFS",
+    "NEUT": "NFS",
+    "LYMPH": "NFS",
+    "MONO": "NFS",
+    "EOS": "NFS",
+    "BASO": "NFS",
     # 2. Bilan martial
     "FER": "Bilan martial",
     "FERR": "Bilan martial",
@@ -33,22 +41,41 @@ CATEGORY_BY_CODE: dict[str, str] = {
     "CREAT": "Bilan rénal",
     "UREE": "Bilan rénal",
     "DFG": "Bilan rénal",
+    "URIC": "Bilan rénal",
+    # 7. Bilan minéral
+    "CA": "Bilan minéral",
+    "MG": "Bilan minéral",
 }
 
 ALIASES: dict[str, list[str]] = {
     # NFS
     "HGB": ["Hémoglobine", "HGB", "Hb"],
-    "WBC": ["Globules blancs", "Leucocytes", "WBC"],
-    "RBC": ["Globules rouges", "Hématies", "RBC"],
-    "PLT": ["Plaquettes", "PLT"],
+    "WBC": ["Leucocytes totaux", "Globules blancs", "Leucocytes", "WBC"],
+    "RBC": ["Hématies (Globules rouges)", "Globules rouges", "Hématies", "RBC"],
+    "PLT": ["Plaquettes", "Numération plaquettaire", "PLT"],
     "HCT": ["Hématocrite", "HCT"],
+    "VGM": ["Volume globulaire moyen", "V.G.M.", "VGM", "MCV"],
+    "TCMH": ["Teneur corpusculaire moyenne en hémoglobine", "T.C.M.H.", "TCMH", "MCH"],
+    "CCMH": ["Concentration corpusculaire moyenne en hémoglobine", "C.C.M.H.", "CCMH", "MCHC"],
+    "NEUT": ["Polynucléaires neutrophiles", "Neutrophiles", "PNN"],
+    "LYMPH": ["Lymphocytes"],
+    "MONO": ["Monocytes"],
+    "EOS": ["Polynucléaires éosinophiles", "Éosinophiles", "Eosinophiles", "PNE"],
+    "BASO": ["Polynucléaires basophiles", "Basophiles", "PNB"],
     # Bilan martial
-    "FER": ["Fer sérique", "Fer", "Siderémie"],
+    "FER": ["Fer sérique", "Sidéremie", "Sidérémie", "Fer"],
     "FERR": ["Ferritine", "Ferritinémie"],
     "TRANSF": ["Transferrine", "Sidérophiline"],
     # Bilan glycémique
-    "GLY": ["Glycémie à jeun", "Glycémie", "Glucose"],
-    "HBA1C": ["Hémoglobine glyquée (HbA1c)", "Hémoglobine glyquée", "HbA1c", "HbA1C"],
+    "GLY": ["Glycémie à jeûn", "Glycémie à jeun", "Glycémie", "Glucose"],
+    "HBA1C": [
+        "Hémoglobine glycosylée (HbA1c)",
+        "Hémoglobine glycosylée",
+        "Hémoglobine glyquée (HbA1c)",
+        "Hémoglobine glyquée",
+        "HbA1c",
+        "HbA1C",
+    ],
     # Bilan lipidique
     "CHOL": ["Cholestérol total", "Cholestérol"],
     "HDL": ["Cholestérol HDL", "HDL-cholestérol", "HDL"],
@@ -63,6 +90,16 @@ ALIASES: dict[str, list[str]] = {
     "CREAT": ["Créatinine sérique", "Créatininémie", "Créatinine", "CREAT"],
     "UREE": ["Urée sanguine", "Urée", "Azotémie"],
     "DFG": ["DFG estimé (CKD-EPI)", "DFG (CKD-EPI)", "Débit de filtration glomérulaire", "DFG", "eDFG"],
+    "URIC": ["Acide urique sérique", "Acide urique", "Uricémie"],
+    # Bilan minéral
+    "CA": ["Calcium sérique", "Calcium plasmatique", "Calcium", "Calcémie"],
+    "MG": [
+        "Magnésium plasmatique",
+        "Magnésium sérique",
+        "Magnésium érythrocytaire",
+        "Magnésium",
+        "Magnésémie",
+    ],
 }
 
 KNOWN_UNITS: list[str] = [
@@ -77,8 +114,12 @@ KNOWN_UNITS: list[str] = [
     "mmol/L",
     "mmol/mol",
     "%",
+    "fL",
+    "pg",
     "10^3/µL",
     "10^6/µL",
+    "Millions/mm³",
+    "/mm³",
     "U/L",
     "UI/L",
     "mL/min/1.73m²",
@@ -88,10 +129,18 @@ KNOWN_UNITS: list[str] = [
 # Unités acceptées par paramètre (validation technique du format, pas d'interprétation)
 ACCEPTED_UNITS: dict[str, list[str]] = {
     "HGB": ["g/dL", "g/L"],
-    "WBC": ["10^3/µL"],
-    "RBC": ["10^6/µL"],
-    "PLT": ["10^3/µL"],
+    "WBC": ["10^3/µL", "/mm³"],
+    "RBC": ["10^6/µL", "Millions/mm³"],
+    "PLT": ["10^3/µL", "/mm³"],
     "HCT": ["%"],
+    "VGM": ["fL"],
+    "TCMH": ["pg"],
+    "CCMH": ["g/dL", "g/L", "%"],
+    "NEUT": ["/mm³", "10^3/µL", "%"],
+    "LYMPH": ["/mm³", "10^3/µL", "%"],
+    "MONO": ["/mm³", "10^3/µL", "%"],
+    "EOS": ["/mm³", "10^3/µL", "%"],
+    "BASO": ["/mm³", "10^3/µL", "%"],
     "FER": ["µmol/L", "mg/L", "µg/dL"],
     "FERR": ["ng/mL", "µg/L"],
     "TRANSF": ["g/L", "mg/dL"],
@@ -108,6 +157,9 @@ ACCEPTED_UNITS: dict[str, list[str]] = {
     "CREAT": ["mg/L", "mg/dL", "µmol/L"],
     "UREE": ["g/L", "mmol/L", "mg/dL"],
     "DFG": ["mL/min/1.73m²", "mL/min"],
+    "URIC": ["µmol/L", "mg/L", "mg/dL"],
+    "CA": ["mg/L", "mg/dL", "mmol/L"],
+    "MG": ["mg/L", "mg/dL", "mmol/L"],
 }
 
 

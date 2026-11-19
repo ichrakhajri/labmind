@@ -5,21 +5,69 @@ import difflib
 import re
 import unicodedata
 
-from .catalog import ALIASES, KNOWN_UNITS
+from .catalog import ACCEPTED_UNITS, ALIASES, KNOWN_UNITS
 
-NUM = r"\d+(?:[.,]\d+)?"
-RANGE_RE = re.compile(rf"({NUM})\s*[-–—]\s*({NUM})")
+SIMPLE_NUM = r"\d+(?:[.,]\d+)?"
+NUM = r"\d{1,3}(?:\s\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?"
+PAREN_RANGE_RE = re.compile(rf"\(\s*({NUM})\s*[-–—]\s*({NUM})\s*\)")
+RANGE_RE = re.compile(rf"({SIMPLE_NUM})\s*[-–—]\s*({SIMPLE_NUM})")
 UPPER_BOUND_RE = re.compile(
-    rf"\(?\s*(?:r[ée]f\.?\s*:?\s*)?(?:<=?|inf[ée]rieur[e]?\s+[àa])\s*({NUM})"
-    rf"(?:\s*[a-zA-Zµμ/%0-9^.,²]+)?\s*\)?",
+    rf"\(?\s*(?:réf\.?\s*:?\s*)?(?:<=?|inférieur[e]?\s+[àa])\s*({SIMPLE_NUM})"
+    rf"(?:\s*[a-zA-Zµμ/%0-9^.,²³]+)?\s*\)?",
     re.I,
 )
 LOWER_BOUND_RE = re.compile(
-    rf"\(?\s*(?:r[ée]f\.?\s*:?\s*)?(?:>=?|sup[ée]rieur[e]?\s+[àa])\s*({NUM})"
-    rf"(?:\s*[a-zA-Zµμ/%0-9^.,²]+)?\s*\)?",
+    rf"\(?\s*(?:réf\.?\s*:?\s*)?(?:>=?|supérieur[e]?\s+[àa])\s*({SIMPLE_NUM})"
+    rf"(?:\s*[a-zA-Zµμ/%0-9^.,²³]+)?\s*\)?",
     re.I,
 )
 NUM_RE = re.compile(NUM)
+LEADER_RE = re.compile(r"(?:\.\s*){2,}|[_\u2026]{1,}|-{3,}")
+PRIOR_DATE_RE = re.compile(
+    rf"(?:{NUM})\s*\(\s*\d{{1,2}}/\d{{1,2}}/\d{{2,4}}\s*\)"
+)
+UNIT_NUMBER_TOKEN_RE = re.compile(
+    r"10\s*\^\s*[36]\s*/\s*[µμu]?l|1[.,]73\s*m(?:\s*\^\s*2|²)",
+    re.I,
+)
+VALUE_UNIT_RE = re.compile(
+    rf"({NUM})\s*([a-zA-Zµμ/%\[][a-zA-Zµμ/%0-9^.,²³°\*!®'’]*)"
+)
+
+CANONICAL_DISPLAY_NAMES: dict[str, str] = {
+    "HGB": "Hémoglobine",
+    "WBC": "Globules blancs",
+    "RBC": "Globules rouges",
+    "PLT": "Plaquettes",
+    "HCT": "Hématocrite",
+    "VGM": "VGM",
+    "TCMH": "TCMH",
+    "CCMH": "CCMH",
+    "NEUT": "Neutrophiles",
+    "LYMPH": "Lymphocytes",
+    "MONO": "Monocytes",
+    "EOS": "Éosinophiles",
+    "BASO": "Basophiles",
+    "FER": "Fer sérique",
+    "FERR": "Ferritine",
+    "TRANSF": "Transferrine",
+    "GLY": "Glycémie",
+    "HBA1C": "HbA1c",
+    "CHOL": "Cholestérol total",
+    "HDL": "Cholestérol HDL",
+    "LDL": "Cholestérol LDL",
+    "TG": "Triglycérides",
+    "ALAT": "ALAT (TGP)",
+    "ASAT": "ASAT (TGO)",
+    "GGT": "Gamma-GT",
+    "BILI": "Bilirubine totale",
+    "CREAT": "Créatinine",
+    "UREE": "Urée",
+    "DFG": "DFG estimé",
+    "URIC": "Acide urique",
+    "CA": "Calcium",
+    "MG": "Magnésium",
+}
 
 
 def _norm(s: str) -> str:
@@ -27,21 +75,51 @@ def _norm(s: str) -> str:
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 
+def _dedup_faux_bold(line: str) -> str:
+    """Corrige les mots doublés lettre à lettre en faux gras PDF (ex. 'GGllyyccéémmiiee àà jjeeûûnn..')."""
+    tokens = re.split(r"(\s+)", line)
+    has_long_faux_bold = any(
+        len(tok) >= 4
+        and len(tok) % 2 == 0
+        and any(c.isalpha() for c in tok)
+        and tok[::2] == tok[1::2]
+        for tok in tokens
+    )
+    if not has_long_faux_bold:
+        return line
+
+    out: list[str] = []
+    for tok in tokens:
+        if (
+            len(tok) >= 4
+            and len(tok) % 2 == 0
+            and any(c.isalpha() for c in tok)
+            and tok[::2] == tok[1::2]
+        ):
+            out.append(tok[::2])
+        elif tok == "àà":
+            out.append("à")
+        else:
+            out.append(tok)
+    return "".join(out)
+
+
 _ALIAS_LIST = sorted(
     ((_norm(a), code) for code, al in ALIASES.items() for a in al),
     key=lambda x: -len(x[0]),
 )
+_KNOWN_UNITS_SET = set(KNOWN_UNITS)
 
 
 def to_float(s: str) -> float:
-    return float(s.replace(",", "."))
+    return float(re.sub(r"\s+", "", s).replace(",", "."))
 
 
 def normalize_unit(u: str | None) -> str | None:
     """Nettoie l'unité et corrige les variantes typographiques et erreurs OCR."""
     if not u:
         return None
-    u = u.strip().strip("()[]:;|_")
+    u = u.strip().strip("()[]:;|_.,")
     u = re.sub(r"\s+", "", u).replace("μ", "µ")
     if not u:
         return None
@@ -49,6 +127,21 @@ def normalize_unit(u: str | None) -> str | None:
     low = u.lower().replace("µ", "u").replace(",", ".")
     if re.match(r"^ml/min/1\.73m(?:\^?2|²)$", low):
         return "mL/min/1.73m²"
+    if re.match(r"^millions?/mm[3³°\*]?$", low) or low in ("m/mm3", "m/mm³", "millions/mm"):
+        return "Millions/mm³"
+    if (
+        re.match(r"^/?mm[3³°\*'’]?$", low)
+        or re.match(r"^[/f\[\(\{]?(?:m{1,2}|[mnr]{2})[3³°\*'’®]?$", low)
+        or re.match(r"^(?:el(?:ts|ements)?)/mm[3³]$", low)
+        or low in ("fram®", "fram", "/°")
+    ):
+        return "/mm³"
+    if low in ("g/d!", "g/d1", "glal", "g/di"):
+        return "g/dL"
+    if low in ("urmol/l", "umo1/l", "umo1/1", "umol/1"):
+        return "µmol/L"
+    if low in ("mmov/l", "mmo1/l", "mmol/1", "mm0l/l"):
+        return "mmol/L"
 
     exact = {k.lower().replace("µ", "u"): k for k in KNOWN_UNITS}
     if low in exact:
@@ -62,9 +155,10 @@ def normalize_unit(u: str | None) -> str | None:
     return exact[cand[0]] if cand else u
 
 
-def match_alias(line: str) -> tuple[str | None, str | None]:
-    """Retourne (code, texte_brut_correspondant) si un alias ouvre la ligne."""
-    stripped = line.lstrip()
+def _exact_match_alias(text: str) -> tuple[str | None, str | None]:
+    stripped = text.lstrip()
+    if not stripped:
+        return None, None
     norm_chars: list[str] = []
     orig_end_indices: list[int] = []
 
@@ -77,48 +171,177 @@ def match_alias(line: str) -> tuple[str | None, str | None]:
 
     norm_line = "".join(norm_chars)
     for alias, code in _ALIAS_LIST:
-        if re.match(rf"^{re.escape(alias)}(?=[\s:;|(\[]|$)", norm_line):
+        if re.match(rf"^{re.escape(alias)}(?=[\s:;|(\[.,]|$)", norm_line):
             raw_end = orig_end_indices[len(alias) - 1]
             return code, stripped[:raw_end]
     return None, None
 
 
-def parse_line(line: str) -> dict | None:
-    code, raw_alias = match_alias(line)
-    if code is None or raw_alias is None:
-        return None
+def _match_alias_with_mode(line: str) -> tuple[str | None, str | None, bool]:
+    """Retourne (code, texte_brut_correspondant, is_fuzzy)."""
+    code, raw = _exact_match_alias(line)
+    if code is not None:
+        return code, raw, False
 
-    rest = line.lstrip()[len(raw_alias) :].lstrip(" :;|")
-    ref_min = ref_max = None
+    trimmed = line.lstrip(" \t.,:;|'\"`‘’“”-_*•·…")
+    if trimmed != line:
+        code, raw = _exact_match_alias(trimmed)
+        if code is not None:
+            return code, raw, False
 
-    m = RANGE_RE.search(rest)
-    if m:
-        ref_min, ref_max = to_float(m.group(1)), to_float(m.group(2))
-        rest = rest[: m.start()] + " " + rest[m.end() :]
-    else:
-        m_upper = UPPER_BOUND_RE.search(rest)
-        if m_upper:
-            ref_max = to_float(m_upper.group(1))
-            rest = rest[: m_upper.start()] + " " + rest[m_upper.end() :]
-        else:
-            m_lower = LOWER_BOUND_RE.search(rest)
-            if m_lower:
-                ref_min = to_float(m_lower.group(1))
-                rest = rest[: m_lower.start()] + " " + rest[m_lower.end() :]
+    m_prefix = re.match(r"^[^\s]{1,2}\s+(.+)$", trimmed)
+    if m_prefix:
+        sub_line = m_prefix.group(1)
+        code, raw = _exact_match_alias(sub_line)
+        if code is not None:
+            return code, raw, False
 
-    rest = re.sub(r"\(\s*r[ée]f\.?\s*:?\s*\)", " ", rest, flags=re.I)
-    rest = re.sub(r"\(\s*\)", " ", rest)
+    for candidate_source in (trimmed, m_prefix.group(1) if m_prefix else ""):
+        if not candidate_source:
+            continue
+        label_part = re.split(
+            r"\s{2,}|(?:\.\s*){2,}|_|\u2026|\d", candidate_source, maxsplit=1
+        )[0].strip(" .,:;|")
+        norm_label = _norm(label_part)
+        if len(norm_label) < 4:
+            continue
 
-    mv = NUM_RE.search(rest)
+        best_score = 0.0
+        best_code: str | None = None
+        for alias, al_code in _ALIAS_LIST:
+            if len(alias) < 4:
+                continue
+            if abs(len(norm_label) - len(alias)) > 3:
+                continue
+            ratio = difflib.SequenceMatcher(None, norm_label, alias).ratio()
+            if ratio > best_score:
+                best_score = ratio
+                best_code = al_code
+        if best_code is not None and best_score >= 0.76:
+            return best_code, label_part, True
+
+    return None, None, False
+
+
+def match_alias(line: str) -> tuple[str | None, str | None]:
+    """Retourne (code, texte_brut_correspondant) si un alias ouvre la ligne."""
+    code, raw, _ = _match_alias_with_mode(line)
+    return code, raw
+
+
+def _clean_display_name(code: str, raw_alias: str, is_fuzzy: bool) -> str:
+    """Remplace les intitulés déformés par l'OCR par un nom français lisible."""
+    raw_clean = raw_alias.strip()
+    has_ocr_casing_glitch = bool(
+        re.search(r"[a-zà-ÿ][A-ZÀ-Ý]", raw_clean)
+    ) and code not in ("HBA1C",)
+    if is_fuzzy or has_ocr_casing_glitch:
+        return CANONICAL_DISPLAY_NAMES.get(code, raw_clean)
+    return raw_clean
+
+
+def _pick_value_and_unit(
+    rest: str,
+    ref_min: float | None,
+    ref_max: float | None,
+    ref_raw: str = "",
+    code: str | None = None,
+) -> tuple[float, str | None] | None:
+    """Sélectionne (valeur, unité) sans confondre points de suite OCR, chiffres d'unités ni %."""
+    masked = UNIT_NUMBER_TOKEN_RE.sub(lambda m: " " * len(m.group(0)), rest)
+
+    pairs = list(VALUE_UNIT_RE.finditer(masked))
+    if pairs:
+        raw_candidates: list[tuple[float, str | None]] = [
+            (to_float(m.group(1)), normalize_unit(m.group(2)))
+            for m in pairs
+        ]
+        known_candidates = [c for c in raw_candidates if c[1] in _KNOWN_UNITS_SET]
+        candidates = known_candidates or raw_candidates
+
+        if len(candidates) >= 2:
+            if (ref_min is not None or ref_max is not None) and "%" not in ref_raw:
+                non_pct = [c for c in candidates if c[1] != "%"]
+                if non_pct:
+                    candidates = non_pct
+            if code and code in ACCEPTED_UNITS:
+                accepted = [c for c in candidates if c[1] in ACCEPTED_UNITS[code]]
+                if accepted:
+                    return accepted[0]
+            return candidates[0]
+
+        if len(known_candidates) == 1:
+            return known_candidates[0]
+
+    mv = NUM_RE.search(masked)
     if not mv:
         return None
-
     value = to_float(mv.group(0))
     unit_txt = (rest[: mv.start()] + " " + rest[mv.end() :]).strip()
     unit = normalize_unit(unit_txt) if unit_txt else None
+    return value, unit
+
+
+def parse_line(line: str) -> dict | None:
+    deduped = _dedup_faux_bold(line)
+    cleaned = LEADER_RE.sub(" ", deduped)
+    code, raw_alias, is_fuzzy = _match_alias_with_mode(cleaned)
+    if code is None or raw_alias is None:
+        return None
+
+    idx = cleaned.find(raw_alias)
+    rest = cleaned[idx + len(raw_alias) :].lstrip(" .,:;|") if idx >= 0 else cleaned
+
+    while True:
+        dup_code, dup_alias = _exact_match_alias(rest)
+        if dup_code == code and dup_alias is not None:
+            rest = rest.lstrip()[len(dup_alias) :].lstrip(" .,:;|")
+        else:
+            break
+
+    rest = PRIOR_DATE_RE.sub(" ", rest)
+
+    ref_min = ref_max = None
+    ref_raw = ""
+
+    m_paren = PAREN_RANGE_RE.search(rest)
+    if m_paren:
+        ref_min, ref_max = to_float(m_paren.group(1)), to_float(m_paren.group(2))
+        ref_raw = m_paren.group(0)
+        rest = rest[: m_paren.start()] + " " + rest[m_paren.end() :]
+    else:
+        m = RANGE_RE.search(rest)
+        if m:
+            ref_min, ref_max = to_float(m.group(1)), to_float(m.group(2))
+            ref_raw = m.group(0)
+            rest = rest[: m.start()] + " " + rest[m.end() :]
+        else:
+            m_upper = UPPER_BOUND_RE.search(rest)
+            if m_upper:
+                ref_max = to_float(m_upper.group(1))
+                ref_raw = m_upper.group(0)
+                rest = rest[: m_upper.start()] + " " + rest[m_upper.end() :]
+            else:
+                m_lower = LOWER_BOUND_RE.search(rest)
+                if m_lower:
+                    ref_min = to_float(m_lower.group(1))
+                    ref_raw = m_lower.group(0)
+                    rest = rest[: m_lower.start()] + " " + rest[m_lower.end() :]
+
+    if ref_min is not None and ref_max is not None and ref_min > ref_max:
+        ref_min = ref_max = None
+
+    rest = re.sub(r"\(\s*réf\.?\s*:?\s*", " ", rest, flags=re.I)
+    rest = re.sub(r"[()]", " ", rest)
+
+    picked = _pick_value_and_unit(rest, ref_min, ref_max, ref_raw=ref_raw, code=code)
+    if picked is None:
+        return None
+
+    value, unit = picked
     return {
         "code": code,
-        "name_printed": raw_alias.strip(),
+        "name_printed": _clean_display_name(code, raw_alias, is_fuzzy),
         "value": value,
         "unit": unit,
         "reference_min": ref_min,

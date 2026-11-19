@@ -19,20 +19,24 @@ def test_catalog_covers_all_six_target_categories():
         "Bilan lipidique",
         "Bilan hépatique",
         "Bilan rénal",
+        "Bilan minéral",
     }
     assert set(CATEGORY_BY_CODE.values()) == expected_categories
     assert set(ALIASES.keys()) == set(CATEGORY_BY_CODE.keys())
     assert set(ACCEPTED_UNITS.keys()) == set(CATEGORY_BY_CODE.keys())
-    assert len(CATEGORY_BY_CODE) == 21
+    assert len(CATEGORY_BY_CODE) == 32
 
 
 def test_normalize_unit_handles_new_units_and_ocr_variants():
     assert normalize_unit("umol/l") == "µmol/L"
+    assert normalize_unit("urmol/l") == "µmol/L"
     assert normalize_unit("ug/L") == "µg/L"
     assert normalize_unit("ui/l") == "UI/L"
     assert normalize_unit("u/l") == "U/L"
     assert normalize_unit("ml/min/1,73m2") == "mL/min/1.73m²"
     assert normalize_unit("mL/min/1.73m^2") == "mL/min/1.73m²"
+    assert normalize_unit("Millions/mm*") == "Millions/mm³"
+    assert normalize_unit("g/d!") == "g/dL"
 
 
 def test_identify_and_analyze_new_categories_and_one_sided_bounds():
@@ -82,6 +86,30 @@ def test_identify_and_analyze_new_categories_and_one_sided_bounds():
         "Bilan hépatique",
         "Bilan rénal",
     }
+
+
+def test_identify_faux_bold_pdf_minerals_and_leukocytes():
+    text = "\n".join(
+        [
+            "GGllyyccéémmiiee àà jjeeûûnn.. .. .. .. .. 5,77 mmol/l ( 4,5 - 6 ) 6,22 (09/10/25)",
+            "CCrrééaattiinniinnee.. .. .. 91 µmol/l ( 65 - 120 ) 98 (15/08/25)",
+            "AAcciiddee UUrriiqquuee.. .. .. 151 µmol/l ( 210 - 420 ) 468 (15/08/25)",
+            "Basophiles …… 0,1 % 7 fmm° ( Inférieur à 50 )",
+            "CALCIUM …… 89 mg/L (88 - 108)",
+            "MAGNESIUM PLASMATIQUE …… 17,39 mg/L (18 - 26)",
+        ]
+    )
+    identified = identify_parameters(text)
+    analyzed = analyze_parameters(identified)
+    by_code = {item["code"]: item for item in analyzed}
+
+    assert set(by_code) == {"GLY", "CREAT", "URIC", "BASO", "CA", "MG"}
+    assert by_code["GLY"]["value"] == 5.77
+    assert by_code["URIC"]["status"] == "below_reference"
+    assert by_code["BASO"]["value"] == 7.0
+    assert by_code["BASO"]["unit"] == "/mm³"
+    assert by_code["MG"]["value"] == 17.39
+    assert by_code["MG"]["status"] == "below_reference"
 
 
 def test_agent_populates_detected_categories_in_task(tmp_path):

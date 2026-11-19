@@ -31,6 +31,7 @@ from .state import AgentState, UncertaintyItem
 
 MIN_NATIVE_PDF_CHARS = 30
 SKIP_ANSWER_LABEL = "je ne sais pas"
+_MINERAL_RELATED_CODES = {"MG", "CA", "FER", "FERR", "TRANSF"}
 
 
 class ToolExecutionResult(BaseModel):
@@ -275,13 +276,20 @@ def run_retrieve_knowledge(
 
     seen_passage_ids: set[str] = set()
     collected: list[RetrievedPassage] = []
-    active_names: list[str] = []
+    out_of_range_names: list[str] = []
+    other_names: list[str] = []
+    active_codes: set[str] = set()
 
     for param in state.validated_parameters:
         if param.status == ParameterStatus.not_analyzed:
             continue
 
-        active_names.append(param.name_printed)
+        active_codes.add(param.code)
+        if param.status in (ParameterStatus.below_reference, ParameterStatus.above_reference):
+            out_of_range_names.append(param.name_printed)
+        else:
+            other_names.append(param.name_printed)
+
         query = f"{param.name_printed} {param.code} prise de sang"
         found = knowledge_index.search(query=query, top_k=top_k_per_parameter)
         for passage in found:
@@ -289,14 +297,23 @@ def run_retrieve_knowledge(
                 seen_passage_ids.add(passage.passage_id)
                 collected.append(passage)
 
+    prioritized_names = out_of_range_names + other_names
     lifestyle_found: list[RetrievedPassage] = []
-    if active_names and _supports_category_filter(knowledge_index):
-        lifestyle_query = (
-            "alimentation activite physique hygiene de vie " + " ".join(active_names[:4])
-        )
+    if prioritized_names and _supports_category_filter(knowledge_index):
+        if active_codes & _MINERAL_RELATED_CODES:
+            lifestyle_query = (
+                "sources alimentaires magnesium calcium fer fruits legumes legumineuses "
+                "produits cerealiers equilibre alimentaire "
+                + " ".join(prioritized_names[:5])
+            )
+        else:
+            lifestyle_query = (
+                "equilibre alimentaire fruits legumes legumineuses produits cerealiers "
+                "hydratation rythme repas activite physique"
+            )
         lifestyle_found = knowledge_index.search(
             query=lifestyle_query,
-            top_k=3,
+            top_k=4,
             categories=[MedicalCategory.hygiene_de_vie],
         )
 

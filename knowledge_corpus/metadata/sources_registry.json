@@ -57,6 +57,48 @@
       "notes": "Actualité officielle ANSES sur la révision des repères alimentaires adultes (PNNS)."
     },
     {
+      "source_id": "anses-vitamines-mineraux-2021",
+      "title": "Les références nutritionnelles en vitamines et minéraux",
+      "organisme": "ANSES",
+      "url": "https://www.anses.fr/fr/content/les-r%C3%A9f%C3%A9rences-nutritionnelles-en-vitamines-et-min%C3%A9raux",
+      "published_date": "2021-04-23",
+      "categories": [
+        "hygiene_de_vie",
+        "bilan_martial"
+      ],
+      "themes": [
+        "magnesium",
+        "calcium",
+        "fer",
+        "vitamines_mineraux",
+        "references_nutritionnelles"
+      ],
+      "reuse_conditions": "Contenu informatif public ANSES (anses.fr), cité avec lien source",
+      "local_filename": "anses_vitamines_mineraux.txt",
+      "status": "collected",
+      "notes": "Synthèse officielle ANSES (mise en ligne avril 2021) sur magnésium, calcium et fer."
+    },
+    {
+      "source_id": "ameli-alimentation-adulte-2026",
+      "title": "L'équilibre alimentaire chez l'adulte",
+      "organisme": "Assurance Maladie (ameli.fr)",
+      "url": "https://www.ameli.fr/assure/sante/themes/alimentation/alimentation-adulte/alimentation-adulte-equilibre-repas",
+      "published_date": "2026-03-10",
+      "categories": [
+        "hygiene_de_vie"
+      ],
+      "themes": [
+        "alimentation",
+        "equilibre_alimentaire",
+        "fruits_legumes",
+        "hydratation"
+      ],
+      "reuse_conditions": "Contenu informatif public Assurance Maladie (ameli.fr), cité avec lien source",
+      "local_filename": "ameli_alimentation_adulte.txt",
+      "status": "collected",
+      "notes": "Repères pratiques PNNS / ameli.fr pour la population adulte."
+    },
+    {
       "source_id": "plan-inserm-fer-anemie",
       "title": "Dossier métabolisme du fer et anémie",
       "organisme": "Inserm",

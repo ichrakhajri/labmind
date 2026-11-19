@@ -48,12 +48,26 @@ class OllamaLLMClient:
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def _detect_installed_model(self) -> str | None:
+        req = urllib.request.Request(url=f"{self.base_url}/api/tags", method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=5.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return None
+        models = data.get("models") if isinstance(data, dict) else None
+        if not isinstance(models, list) or not models:
+            return None
+        first_name = models[0].get("name") if isinstance(models[0], dict) else None
+        return str(first_name) if first_name else None
+
+    def _post_chat(self, model_name: str, system_prompt: str, user_prompt: str) -> str:
         payload = {
-            "model": self.model,
+            "model": model_name,
             "stream": False,
+            "keep_alive": "10m",
             "format": "json",
-            "options": {"temperature": 0.0, "num_ctx": 4096},
+            "options": {"temperature": 0.0, "num_ctx": 1024, "num_predict": 180},
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -66,16 +80,32 @@ class OllamaLLMClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise LocalLLMError(
-                f"Échec de communication avec Ollama ({self.base_url}) : {exc}"
-            ) from exc
+        with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
 
         message = body.get("message")
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             raise LocalLLMError("Réponse Ollama inattendue : champ 'message.content' absent.")
         return message["content"]
+
+    def generate(self, system_prompt: str, user_prompt: str) -> str:
+        try:
+            return self._post_chat(self.model, system_prompt, user_prompt)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                fallback_model = self._detect_installed_model()
+                if fallback_model and fallback_model != self.model:
+                    self.model = fallback_model
+                    try:
+                        return self._post_chat(self.model, system_prompt, user_prompt)
+                    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as retry_exc:
+                        raise LocalLLMError(
+                            f"Échec de communication avec Ollama ({self.base_url}) : {retry_exc}"
+                        ) from retry_exc
+            raise LocalLLMError(
+                f"Échec HTTP Ollama ({self.base_url}) : {exc}"
+            ) from exc
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise LocalLLMError(
+                f"Échec de communication avec Ollama ({self.base_url}) : {exc}"
+            ) from exc

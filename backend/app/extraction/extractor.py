@@ -9,7 +9,7 @@ import numpy as np
 import pdfplumber
 import pymupdf
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageOps
 
 from app.core.config import Settings, get_settings
 
@@ -25,23 +25,103 @@ def ocr_lang(settings: Settings | None = None) -> str:
     settings = settings or get_settings()
     _setup_tesseract(settings)
     try:
-        langs = pytesseract.get_languages()
-        return settings.ocr_language if settings.ocr_language in langs else "eng"
+        langs = set(pytesseract.get_languages())
+        parts = [part.strip() for part in settings.ocr_language.split("+") if part.strip()]
+        if parts and all(part in langs for part in parts):
+            return settings.ocr_language
+        return "fra" if "fra" in langs else "eng"
     except Exception:
         return "eng"
 
 
+def _estimate_skew_angle(gray_norm: np.ndarray) -> float:
+    """Estime l'angle d'inclinaison (en degrés) à partir des lignes de texte horizontales."""
+    h, w = gray_norm.shape[:2]
+    if h < 100 or w < 100:
+        return 0.0
+
+    _, bw = cv2.threshold(gray_norm, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (max(25, w // 55), 3))
+    merged = cv2.dilate(bw, kernel, iterations=1)
+    contours, _ = cv2.findContours(merged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    angles: list[float] = []
+    min_line_w = max(120, w // 10)
+    for cnt in contours:
+        _, _, bw_w, bw_h = cv2.boundingRect(cnt)
+        if bw_w < min_line_w or bw_w < 3 * max(bw_h, 1):
+            continue
+        vx, vy, _, _ = cv2.fitLine(cnt, cv2.DIST_L2, 0, 0.01, 0.01)
+        vx_f = float(vx[0]) if hasattr(vx, "__len__") else float(vx)
+        vy_f = float(vy[0]) if hasattr(vy, "__len__") else float(vy)
+        if vx_f < 0:
+            vx_f, vy_f = -vx_f, -vy_f
+        angle = float(np.degrees(np.arctan2(vy_f, vx_f)))
+        if -12.0 <= angle <= 12.0:
+            angles.append(angle)
+
+    if len(angles) < 3:
+        return 0.0
+    median_angle = float(np.median(angles))
+    if 0.25 <= abs(median_angle) <= 10.0:
+        return median_angle
+    return 0.0
+
+
+def _deskew_gray(gray_norm: np.ndarray) -> np.ndarray:
+    angle = _estimate_skew_angle(gray_norm)
+    if angle == 0.0:
+        return gray_norm
+    h, w = gray_norm.shape[:2]
+    matrix = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), angle, 1.0)
+    return cv2.warpAffine(
+        gray_norm,
+        matrix,
+        (w, h),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=255,
+    )
+
+
 def preprocess(img: Image.Image) -> Image.Image:
-    """Niveaux de gris, agrandissement, binarisation, suppression des lignes de tableau."""
+    """Correction EXIF, agrandissement, éclairage, redressement et nettoyage sans casser les virgules."""
+    img = ImageOps.exif_transpose(img)
     g = np.array(img.convert("L"))
-    if g.shape[1] < 1600:
-        f = 1600 / g.shape[1]
+
+    # Tesseract LSTM lit nettement mieux les virgules et indices autour de 2400 px de large
+    if g.shape[1] < 2400:
+        f = min(2.5, 2400 / max(g.shape[1], 1))
         g = cv2.resize(g, None, fx=f, fy=f, interpolation=cv2.INTER_CUBIC)
-    bw = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-    h = cv2.morphologyEx(bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (60, 1)))
-    v = cv2.morphologyEx(bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40)))
-    bw = cv2.subtract(bw, cv2.add(h, v))
-    return Image.fromarray(255 - bw)
+
+    # Normalisation douce de l'éclairage pour atténuer ombres et plis photo
+    sigma = max(25, min(85, int(g.shape[1] * 0.025)))
+    bg = cv2.GaussianBlur(g, (0, 0), sigmaX=sigma, sigmaY=sigma)
+    bg = np.maximum(bg, 1)
+    norm = np.clip((g.astype(np.float32) / bg.astype(np.float32)) * 255.0, 0, 255).astype(
+        np.uint8
+    )
+
+    # Redressement automatique si la photo est inclinée
+    norm = _deskew_gray(norm)
+
+    # Détection des seules lignes de tableau sans binariser le texte lui-même
+    bw = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    h_lines = cv2.morphologyEx(
+        bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (60, 1))
+    )
+    v_lines = cv2.morphologyEx(
+        bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
+    )
+    line_mask = cv2.dilate(cv2.add(h_lines, v_lines), np.ones((3, 3), np.uint8))
+    cleaned = norm.copy()
+    cleaned[line_mask > 0] = 255
+
+    # Étirement doux de contraste : fond papier -> blanc pur, anti-aliasing des virgules conservé
+    stretched = np.clip((cleaned.astype(np.float32) - 35.0) * (255.0 / 190.0), 0, 255).astype(
+        np.uint8
+    )
+    return Image.fromarray(stretched)
 
 
 def ocr_image_with_confidence(
@@ -52,14 +132,15 @@ def ocr_image_with_confidence(
     settings = settings or get_settings()
     lang = ocr_lang(settings)
     prepared = preprocess(img)
-    text = pytesseract.image_to_string(prepared, lang=lang, config="--psm 6")
+    config = "--oem 3 --psm 6 -c preserve_interword_spaces=1"
+    text = pytesseract.image_to_string(prepared, lang=lang, config=config)
 
     avg_conf: float | None = None
     try:
         data = pytesseract.image_to_data(
             prepared,
             lang=lang,
-            config="--psm 6",
+            config=config,
             output_type=pytesseract.Output.DICT,
         )
         scores = []
