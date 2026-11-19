@@ -15,45 +15,53 @@ LabMind ne pose aucun diagnostic et ne prescrit aucun traitement.
     .venv\Scripts\Activate.ps1
     python -m pip install -r requirements.txt
 
-## Configuration
-Variables d'environnement optionnelles (voir `backend/.env.example`) :
-`LABMIND_TESSERACT_CMD`, `LABMIND_OCR_LANG`, `LABMIND_DATA_DIR`, `LABMIND_MAX_UPLOAD_BYTES`,
-`LABMIND_OLLAMA_URL`, `LABMIND_LLM_MODEL`.
+## Préparation de l'index documentaire (si sources modifiées)
+    cd backend
+    python scripts\build_knowledge_index.py
 
-## Tests et démonstration
+## Lancement de l'API locale (Swagger : http://127.0.0.1:8000/docs)
+    cd backend
+    uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+## Tests, démo et évaluation
     cd backend
     python -m pytest -v
     python scripts\demo_agent_trace.py
+    python scripts\generate_eval_samples.py
+    python scripts\run_evaluation.py
 
 ## Structure
-    backend/app/core/            configuration
-    backend/app/extraction/      PDF (texte natif) et OCR Tesseract
-    backend/app/identification/  catalogue d'alias, parsing des lignes
-    backend/app/validation/      contrôles techniques, comparaison arithmétique à la fourchette du laboratoire
+    backend/app/core/            configuration (variables LABMIND_*)
+    backend/app/api/             API FastAPI v1, sécurité uploads (magic bytes) et confidentialité HTTP
+    backend/app/database/        modèles SQLAlchemy (9 entités), SQLite (FK ON) et purge automatique 1 h
+    backend/app/report/          générateur du rapport PDF pédagogique final (ReportLab)
+    backend/app/main.py          point d'entrée uvicorn et branchement RAG au démarrage
+    backend/app/extraction/      PDF (texte + tableaux par page) et OCR Tesseract avec confiance
+    backend/app/identification/  catalogue 6 catégories (21 paramètres), parsing et normalisation
+    backend/app/validation/      contrôles techniques, seuils unilatéraux, calcul de confiance
     backend/app/knowledge/       registre des sources, découpage en passages et index FAISS
     backend/app/generation/      client Ollama local, RAG, contrôle d'ancrage et repli neutre
     backend/app/agent/           état, traces, outils, planificateur et boucle avec reprise utilisateur
-    backend/app/schemas.py       schémas Pydantic (base du contrat API v1)
-    backend/scripts/             outils CLI (indexation, benchmark embeddings, démo agent)
-    backend/tests/               tests automatisés (dont garde-fou anti-système-expert)
-    knowledge_corpus/            sources officielles, métadonnées et index vectoriel
-    docs/api-contract/           contrat API v1 + exemples JSON
-    docs/archive/                prototype Colab archivé (lecture seule, non conforme)
-    docs/decisions/              décisions techniques
+    backend/app/evaluation/      métriques séparées (identification, valeur, unité, référence)
+    backend/app/schemas.py       schémas Pydantic (contrat API v1)
+    backend/scripts/             outils CLI (indexation, benchmark, démo agent, évaluation)
+    backend/tests/               tests automatisés (AST anti-système-expert, RAG, agent, API, DB, PDF, sécurité)
+    knowledge_corpus/            sources officielles, métadonnées et index vectoriel FAISS
+    evaluation/                  documents de test, vérités terrain et rapports d'évaluation
+    docs/                        contrat API v1, archive Colab et décisions techniques (ADR 0001 à 0009)
 
-## État du projet (fin de l'Étape 4)
-Fait :
-- Modularisation de la chaîne extraction -> identification -> validation et contrat API v1 validé.
-- Retrait du système expert et verrouillage AST (`test_no_expert_system.py`).
-- Pipeline RAG local (FAISS + `multilingual-e5-small` + Ollama `qwen2.5:1.5b` + contrôle d'ancrage + première source `ameli.fr` collectée).
-- Véritable agent à outils avec boucle adaptative, traces des décisions et interruption/reprise `waiting_for_user`.
+## État du projet (Backend/IA terminé)
+Réalisé :
+- Backend modulaire complet couvrant les 6 catégories (21 paramètres), strictement conforme « zéro système expert » (vérifié par analyse AST automatisée).
+- RAG strictement local : FAISS + `intfloat/multilingual-e5-small` + Ollama `qwen2.5:1.5b` + contrôle d'ancrage et repli neutre explicite si source insuffisante.
+- Véritable agent à états avec trace des décisions et boucle interactive `waiting_for_user`.
+- `detected_categories`, `evidence.page` et `confidence` calculés et exposés dans `Task`.
+- Dispositif d'évaluation séparée par champ dans `evaluation/`.
+- API FastAPI v1 complète, durcie (magic bytes, UUID4, no-cache) et documentée (OpenAPI + `docs/api-contract/API_V1.md`).
+- Persistance SQLite relationnelle, suppression immédiate (`DELETE`) et purge automatique après 1 h.
+- Génération du rapport PDF pédagogique final avec sources citées, limites et précaution unique.
 
-Pas encore fait :
-- Catalogue étendu aux 6 catégories (fer, ferritine, HbA1c, foie, rein) + extraction robuste / jeu d'évaluation indépendant (Étape 5).
-- API FastAPI complète, file de tâches et persistance SQLite/PostgreSQL (Étapes 6 et 7).
-- Génération du rapport PDF final et suppression automatique/manuelle vérifiable (Étapes 8 et 9).
-
-## Dette connue
-- Le catalogue d'identification ne couvre encore que les 10 paramètres du prototype (NFS, glycémie, lipides).
-- `confidence`, `evidence.page` et `detected_categories` restent à alimenter à l'Étape 5.
-- Compléter `knowledge_corpus/sources/` avec des fiches dédiées NFS/hémogramme, bilan martial et hygiène de vie (ANSES).
+Travaux complémentaires recommandés avant soutenance :
+- Collecter les fiches officielles encore en `pending_collection` dans `knowledge_corpus/metadata/sources_registry.json` (notamment ANSES pour l'hygiène de vie, Inserm/Ameli pour le fer/NFS) puis relancer `python scripts\build_knowledge_index.py`.
+- Tester `evaluation/` sur de vrais comptes rendus anonymisés issus de laboratoires différents.
+- Connecter le frontend de ton collègue sur `http://127.0.0.1:8000/v1` (CORS déjà configuré pour `localhost:3000` et `localhost:5173`).

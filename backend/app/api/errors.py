@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.schemas import ErrorInfo, ErrorResponse
 
@@ -30,6 +31,16 @@ def install_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content=_error_payload(exc.code, exc.message),
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def handle_http_error(
+        _request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        code = "not_found" if exc.status_code == 404 else "invalid_request"
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_error_payload(code, "Ressource introuvable ou requête refusée."),
         )
 
     @app.exception_handler(RequestValidationError)

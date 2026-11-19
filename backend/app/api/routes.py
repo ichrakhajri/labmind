@@ -1,7 +1,5 @@
-"""Routes HTTP /v1 conformes au contrat API v1."""
+"""Routes HTTP /v1 conformes au contrat API v1 et durcies."""
 from __future__ import annotations
-
-from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, File, Request, Response, UploadFile, status
 
@@ -9,6 +7,7 @@ from app.agent.orchestrator import InvalidAnswerError, InvalidQuestionStateError
 from app.schemas import AnswerIn, Task
 
 from .errors import ApiError
+from .security import validate_task_id_or_404, validate_upload_file
 from .store import ReportNotReadyError, TaskManager, TaskNotFoundError
 
 router = APIRouter(prefix="/v1", tags=["tasks"])
@@ -34,35 +33,19 @@ def create_task(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
 ) -> Task:
-    """Dépose un document PDF ou image et démarre l'analyse en arrière-plan."""
+    """Dépose un document PDF ou image validé et démarre l'analyse en arrière-plan."""
     manager = _get_manager(request)
     settings = manager.settings
 
-    filename = Path(file.filename or "").name
-    suffix = Path(filename).suffix.lower()
-    if suffix not in settings.allowed_extensions:
-        raise ApiError(
-            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            "unsupported_format",
-            "Format non supporté (pdf, png, jpg, jpeg).",
-        )
-
     content = file.file.read(settings.max_upload_bytes + 1)
-    if not content:
-        raise ApiError(
-            status.HTTP_400_BAD_REQUEST,
-            "invalid_request",
-            "Le fichier déposé est vide.",
-        )
+    safe_name = validate_upload_file(
+        raw_filename=file.filename,
+        content=content,
+        max_upload_bytes=settings.max_upload_bytes,
+        allowed_extensions=settings.allowed_extensions,
+    )
 
-    if len(content) > settings.max_upload_bytes:
-        raise ApiError(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            "file_too_large",
-            f"Le fichier dépasse la limite autorisée ({settings.max_upload_bytes} octets).",
-        )
-
-    task = manager.create_task(original_filename=filename, content=content)
+    task = manager.create_task(original_filename=safe_name, content=content)
     background_tasks.add_task(manager.process_task, task.task_id)
     return task
 
@@ -70,8 +53,9 @@ def create_task(
 @router.get("/tasks/{task_id}", response_model=Task)
 def get_task(task_id: str, request: Request) -> Task:
     """Retourne le statut et le résultat courant d'une tâche."""
+    valid_id = validate_task_id_or_404(task_id)
     manager = _get_manager(request)
-    task = manager.get_task(task_id)
+    task = manager.get_task(valid_id)
     if task is None:
         raise ApiError(
             status.HTTP_404_NOT_FOUND,
@@ -84,9 +68,10 @@ def get_task(task_id: str, request: Request) -> Task:
 @router.post("/tasks/{task_id}/answer", response_model=Task)
 def answer_task(task_id: str, body: AnswerIn, request: Request) -> Task:
     """Transmet la réponse utilisateur à une question de l'agent et reprend le traitement."""
+    valid_id = validate_task_id_or_404(task_id)
     manager = _get_manager(request)
     try:
-        return manager.answer_task(task_id, body)
+        return manager.answer_task(valid_id, body)
     except TaskNotFoundError as exc:
         raise ApiError(
             status.HTTP_404_NOT_FOUND,
@@ -110,9 +95,10 @@ def answer_task(task_id: str, body: AnswerIn, request: Request) -> Task:
 @router.get("/tasks/{task_id}/report.pdf")
 def download_report_pdf(task_id: str, request: Request) -> Response:
     """Télécharge le rapport PDF lorsque la tâche est terminée (`done`)."""
+    valid_id = validate_task_id_or_404(task_id)
     manager = _get_manager(request)
     try:
-        pdf_bytes, filename = manager.get_report_pdf(task_id)
+        pdf_bytes, filename = manager.get_report_pdf(valid_id)
     except TaskNotFoundError as exc:
         raise ApiError(
             status.HTTP_404_NOT_FOUND,
@@ -136,8 +122,9 @@ def download_report_pdf(task_id: str, request: Request) -> Response:
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(task_id: str, request: Request) -> Response:
     """Supprime immédiatement la tâche, son fichier uploadé et son rapport."""
+    valid_id = validate_task_id_or_404(task_id)
     manager = _get_manager(request)
-    deleted = manager.delete_task(task_id)
+    deleted = manager.delete_task(valid_id)
     if not deleted:
         raise ApiError(
             status.HTTP_404_NOT_FOUND,
