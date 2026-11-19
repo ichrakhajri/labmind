@@ -1,0 +1,13 @@
+.context-card { margin-bottom: 16px; background: var(--gris-clair); }
+.raw-text { margin: 8px 0 0; font-size: 0.9rem; color: var(--gris); }
+.question-card h2 { margin-top: 0; }
+.custom-box { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bordure); }
+.custom-row { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+input {
+  flex: 1;
+  min-width: 180px;
+  padding: 10px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  font-size: 1rem;
+}

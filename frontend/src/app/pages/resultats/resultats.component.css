@@ -1,0 +1,33 @@
+.doc-meta { color: var(--gris); }
+.categories { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.code-tag { color: var(--gris); font-size: 0.85rem; }
+.evidence-line { color: var(--gris); font-size: 0.8rem; margin-top: 4px; }
+.reason-text { font-size: 0.85rem; color: var(--gris); margin-top: 4px; }
+
+.resume {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.resume .card { text-align: center; }
+.resume strong { display: block; font-size: 2rem; color: var(--bleu); }
+.resume span { color: var(--gris); font-size: 0.9rem; }
+
+.explications { display: grid; gap: 14px; }
+.exp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.exp-header h3 { margin: 0; color: var(--bleu-fonce); }
+.explications p { margin: 0; }
+.exp-sources { margin-top: 8px; font-size: 0.85rem; color: var(--gris); }
+
+.sources { padding-left: 20px; }
+.sources li { margin-bottom: 6px; }
+.centre { text-align: center; }
+.centre-actions { justify-content: center; }
