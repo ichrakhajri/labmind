@@ -1,18 +1,22 @@
-<div class="container narrow centre">
-  <div class="spinner"></div>
-  <h1>Analyse en cours…</h1>
-  <p>Cela peut prendre quelques instants. Merci de ne pas fermer cette page.</p>
-
-  <div class="card etapes">
-    <div class="etape fait">✔ Document reçu</div>
-    <div class="etape" [class.actif]="status === 'received' || status === 'processing'">
-      ⏳ Traitement et lecture du document ({{ status }})
+<div class="thread-container">
+  <div class="file-bubble">
+    <div class="file-icon-box">DOC</div>
+    <div class="file-meta">
+      <div class="file-name">{{ filename }}</div>
+      <div class="file-sub">Analyse en cours</div>
     </div>
-    <div class="etape">○ Vérification des données si nécessaire</div>
-    <div class="etape">○ Préparation du bilan</div>
   </div>
 
-  @if (disclaimer) {
-    <div class="notice">{{ disclaimer }}</div>
-  }
+  <div class="assistant-card wait-card">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2>Lecture de votre bilan en cours...</h2>
+    <p class="wait-desc">
+      LabMind extrait vos paramètres et vérifie les valeurs par rapport aux fourchettes de votre
+      laboratoire. Cela prend quelques secondes.
+    </p>
+
+    <button type="button" class="btn btn-ghost-danger" (click)="cancelAndDelete()">
+      Annuler et supprimer
+    </button>
+  </div>
 </div>

@@ -1,10 +1,12 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { LabmindApiService } from '../../services/labmind-api.service';
 
 @Component({
   selector: 'app-verification',
-  imports: [],
+  imports: [CommonModule, FormsModule],
   templateUrl: './verification.component.html',
   styleUrl: './verification.component.css'
 })
@@ -14,112 +16,95 @@ export class VerificationComponent implements OnInit {
   private api = inject(LabmindApiService);
 
   taskId = '';
-  task: any = null;
-  showCustomInput = false;
+  filename = 'Votre document';
+  question: any = null;
+  selectedOption = '';
   customValue = '';
-  isSubmitting = false;
   errorMessage = '';
+  isSubmitting = false;
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.taskId = this.route.snapshot.paramMap.get('id') || '';
-    const stateTask = history.state?.task;
+    if (!this.taskId) {
+      this.router.navigate(['/erreur']);
+      return;
+    }
 
-    if (stateTask && stateTask.task_id === this.taskId) {
-      this.task = stateTask;
-    } else if (this.taskId) {
-      this.api.getTask(this.taskId).subscribe({
-        next: (task) => this.handleTaskUpdate(task),
-        error: (err) => {
-          this.router.navigate(['/erreur'], { state: { error: this.api.formatError(err) } });
+    this.api.getTask(this.taskId).subscribe({
+      next: (task) => {
+        if (task?.document?.filename) {
+          this.filename = task.document.filename;
         }
-      });
+        if (task?.status === 'done') {
+          this.router.navigate(['/resultats', this.taskId]);
+        } else if (task?.status === 'processing' || task?.status === 'received') {
+          this.router.navigate(['/attente', this.taskId]);
+        } else if (task?.status === 'error') {
+          const message = task?.errors?.[0]?.message || 'Impossible de poursuivre.';
+          this.router.navigate(['/erreur'], { state: { message } });
+        } else {
+          this.question = task?.pending_question || null;
+        }
+      },
+      error: (err) => {
+        const formatted = this.api.formatError(err);
+        this.router.navigate(['/erreur'], { state: { message: formatted.message } });
+      }
+    });
+  }
+
+  get options(): string[] {
+    const raw: string[] = this.question?.options || [];
+    if (raw.includes('je ne sais pas')) {
+      return raw;
     }
+    return [...raw, 'je ne sais pas'];
   }
 
-  get optionsList(): string[] {
-    const opts: string[] = [...(this.task?.pending_question?.options || [])];
-    if (!opts.includes('je ne sais pas')) {
-      opts.push('je ne sais pas');
-    }
-    return opts;
-  }
-
-  get matchedParameter(): any {
-    const code = this.task?.pending_question?.code;
-    return this.task?.parameters?.find((p: any) => p.code === code) || null;
-  }
-
-  onOptionClick(option: string) {
+  chooseAndSend(option: string): void {
     if (option === 'autre') {
-      this.showCustomInput = true;
+      this.selectedOption = 'autre';
       this.errorMessage = '';
       return;
     }
-    this.sendAnswer(option);
+    this.selectedOption = option;
+    this.send(option);
   }
 
-  sendAnswer(answer: string) {
-    if (!this.task?.pending_question || this.isSubmitting) return;
+  submitCustom(): void {
+    const trimmed = this.customValue.trim();
+    if (!trimmed) {
+      this.errorMessage = 'Veuillez saisir la valeur indiquée sur votre document.';
+      return;
+    }
+    this.send(trimmed);
+  }
 
+  private send(answer: string): void {
+    if (!this.question || this.isSubmitting) return;
     this.isSubmitting = true;
     this.errorMessage = '';
 
-    this.api
-      .submitAnswer(this.taskId, this.task.pending_question.question_id, answer)
-      .subscribe({
-        next: (updatedTask) => {
-          this.isSubmitting = false;
-          this.handleTaskUpdate(updatedTask);
-        },
-        error: (err) => {
-          this.isSubmitting = false;
-          const formatted = this.api.formatError(err);
-          if (err?.status === 422 || formatted.code === 'invalid_answer') {
-            this.errorMessage = formatted.message;
-          } else if (err?.status === 409 || formatted.code === 'invalid_state') {
-            this.router.navigate(['/attente', this.taskId]);
-          } else {
-            this.router.navigate(['/erreur'], { state: { error: formatted } });
-          }
+    this.api.submitAnswer(this.taskId, this.question.question_id, answer).subscribe({
+      next: (task) => {
+        this.isSubmitting = false;
+        if (task?.status === 'done') {
+          this.router.navigate(['/resultats', this.taskId]);
+        } else if (task?.status === 'waiting_for_user') {
+          this.question = task.pending_question;
+          this.selectedOption = '';
+          this.customValue = '';
+        } else if (task?.status === 'error') {
+          const message = task?.errors?.[0]?.message || 'Erreur lors du traitement.';
+          this.router.navigate(['/erreur'], { state: { message } });
+        } else {
+          this.router.navigate(['/attente', this.taskId]);
         }
-      });
-  }
-
-  private handleTaskUpdate(updatedTask: any) {
-    if (!updatedTask || !updatedTask.status) {
-      this.router.navigate(['/attente', this.taskId]);
-      return;
-    }
-
-    if (updatedTask.status === 'waiting_for_user' && updatedTask.pending_question) {
-      this.task = updatedTask;
-      this.showCustomInput = false;
-      this.customValue = '';
-      return;
-    }
-
-    if (updatedTask.status === 'done') {
-      this.router.navigate(['/resultats', this.taskId], { state: { task: updatedTask } });
-      return;
-    }
-
-    if (updatedTask.status === 'error') {
-      const firstError = updatedTask.errors?.[0] || {
-        code: 'internal_error',
-        message: "L'analyse n'a pas pu aboutir."
-      };
-      this.router.navigate(['/erreur'], { state: { error: firstError } });
-      return;
-    }
-
-    this.router.navigate(['/attente', this.taskId]);
-  }
-
-  supprimerDonnees() {
-    this.api.deleteTask(this.taskId).subscribe({
-      next: () => this.router.navigate(['/']),
-      error: (err) =>
-        this.router.navigate(['/erreur'], { state: { error: this.api.formatError(err) } })
+      },
+      error: (err) => {
+        this.isSubmitting = false;
+        this.errorMessage = this.api.formatError(err).message;
+      }
     });
   }
 }

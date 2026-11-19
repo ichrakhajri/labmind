@@ -8,15 +8,14 @@ import { Observable, of, throwError, delay } from 'rxjs';
 export class LabmindApiService {
   private http = inject(HttpClient);
 
-  // Branché par défaut sur le backend FastAPI réel (lancer Angular sur --port 3000)
-  // Passer useMock à true uniquement pour tester sans le serveur Python
+  // Branché sur le backend FastAPI réel (lancer Angular sur --port 5173)
   readonly useMock = false;
   readonly apiUrl = 'http://127.0.0.1:8000/v1';
 
   private mockPollCount = 0;
   private mockAnsweredUnit: string | null = null;
   private mockDeleted = false;
-  private mockFilename = 'bilan.pdf';
+  private mockFilename = 'bilan_sang.pdf';
 
   private readonly mockDisclaimer =
     'Outil pédagogique : ce bilan ne remplace pas une consultation médicale et ne constitue ni un diagnostic ni une prescription.';
@@ -79,7 +78,7 @@ export class LabmindApiService {
       sources: [],
       disclaimer: this.mockDisclaimer,
       errors: []
-    }).pipe(delay(400));
+    }).pipe(delay(350));
   }
 
   // GET /v1/tasks/{task_id}
@@ -124,25 +123,13 @@ export class LabmindApiService {
         status: 'waiting_for_user',
         document: { filename: this.mockFilename, extraction_method: 'pdf_text' },
         detected_categories: ['NFS'],
-        parameters: [
-          {
-            code: 'HCT',
-            name_printed: 'Hématocrite',
-            value: 46.0,
-            unit: null,
-            reference: { min: 37.0, max: 47.0, origin: 'document_laboratoire' },
-            status: 'not_analyzed',
-            reason: 'unité absente du document',
-            confidence: 0.88,
-            evidence: { raw_text: 'Hématocrite 46,0 37 - 47', page: 1 }
-          }
-        ],
+        parameters: [],
         pending_question: {
           question_id: 'q-001',
           field: 'unit',
           code: 'HCT',
           message:
-            "L'unité de ce paramètre est absente du document. Quelle unité figure sur votre compte rendu ?",
+            "L'unité de l'hématocrite est absente du document. Quelle unité figure sur votre compte rendu ?",
           options: ['%', 'autre', 'je ne sais pas']
         },
         report_id: null,
@@ -153,47 +140,34 @@ export class LabmindApiService {
       });
     }
 
-    const hctAnswered = this.mockAnsweredUnit !== 'je ne sais pas';
     return of({
       task_id: taskId,
       status: 'done',
       document: { filename: this.mockFilename, extraction_method: 'pdf_text' },
-      detected_categories: ['NFS', 'Bilan glycémique'],
+      detected_categories: ['NFS'],
       parameters: [
         {
           code: 'HGB',
           name_printed: 'Hémoglobine',
-          value: 10.5,
+          value: 13.5,
           unit: 'g/dL',
           reference: { min: 12.0, max: 16.0, origin: 'document_laboratoire' },
-          status: 'below_reference',
+          status: 'within_reference',
           reason: null,
           confidence: 0.96,
-          evidence: { raw_text: 'Hémoglobine 10,5 g/dL 12,0 - 16,0', page: 1 }
+          evidence: { raw_text: 'Hémoglobine 13,5 g/dL 12,0 - 16,0', page: 1 }
         },
-        hctAnswered
-          ? {
-              code: 'HCT',
-              name_printed: 'Hématocrite',
-              value: 46.0,
-              unit: this.mockAnsweredUnit || '%',
-              reference: { min: 37.0, max: 47.0, origin: 'document_laboratoire' },
-              status: 'within_reference',
-              reason: null,
-              confidence: 0.95,
-              evidence: { raw_text: 'Hématocrite 46,0 37 - 47', page: 1 }
-            }
-          : {
-              code: 'HCT',
-              name_printed: 'Hématocrite',
-              value: 46.0,
-              unit: null,
-              reference: { min: 37.0, max: 47.0, origin: 'document_laboratoire' },
-              status: 'not_analyzed',
-              reason: 'unité non confirmée par l’utilisateur',
-              confidence: 0.88,
-              evidence: { raw_text: 'Hématocrite 46,0 37 - 47', page: 1 }
-            }
+        {
+          code: 'WBC',
+          name_printed: 'Globules blancs',
+          value: 11.2,
+          unit: 'G/L',
+          reference: { min: 4.0, max: 10.0, origin: 'document_laboratoire' },
+          status: 'above_reference',
+          reason: null,
+          confidence: 0.95,
+          evidence: { raw_text: 'Globules blancs 11,2 G/L 4,0 - 10,0', page: 1 }
+        }
       ],
       pending_question: null,
       report_id: 'r-3f2b8c1e',
@@ -201,19 +175,20 @@ export class LabmindApiService {
         summary: 'Explications pédagogiques produites exclusivement à partir des sources documentaires vérifiées.',
         parameter_explanations: [
           {
-            code: 'HGB',
+            code: 'WBC',
             status: 'grounded',
-            text: "L'hémoglobine est une protéine présente dans les globules rouges qui transporte l'oxygène. Votre valeur est située en dessous de la fourchette indiquée par votre laboratoire.",
+            text: "Les globules blancs (leucocytes) participent aux défenses de l'organisme. Une valeur supérieure à la fourchette du laboratoire justifie d'en parler lors d'une consultation médicale.",
             source_ids: ['ameli-prise-sang-2026']
-          },
-          {
-            code: 'HCT',
-            status: hctAnswered ? 'grounded' : 'not_analyzed',
-            text: hctAnswered
-              ? "L'hématocrite correspond au volume occupé par les globules rouges dans le sang. Votre valeur est située dans la fourchette du laboratoire."
-              : "Ce paramètre n'a pas été analysé car son unité n'a pas été confirmée.",
-            source_ids: hctAnswered ? ['ameli-prise-sang-2026'] : []
           }
+        ],
+        lifestyle_info: {
+          status: 'grounded',
+          text: "Une alimentation variée, une hydratation régulière et un sommeil suffisant contribuent au bon équilibre général, selon les repères publics de l'ANSES.",
+          source_ids: ['anses-reperes-2026']
+        },
+        consultation_questions: [
+          'Cette valeur de globules blancs nécessite-t-elle un contrôle ultérieur ?',
+          'Y a-t-il des éléments cliniques à prendre en compte avec ces résultats ?'
         ]
       },
       sources: [
@@ -238,19 +213,6 @@ export class LabmindApiService {
         answer
       });
     }
-
-    if (!answer.trim()) {
-      return throwError(() => ({
-        status: 422,
-        error: {
-          error: {
-            code: 'invalid_answer',
-            message: 'Veuillez choisir une option ou saisir une valeur.'
-          }
-        }
-      }));
-    }
-
     this.mockAnsweredUnit = answer.trim();
     return this.getTask(taskId).pipe(delay(300));
   }
@@ -266,7 +228,7 @@ export class LabmindApiService {
       return this.http.delete<void>(`${this.apiUrl}/tasks/${taskId}`);
     }
     this.mockDeleted = true;
-    return of(void 0).pipe(delay(300));
+    return of(void 0).pipe(delay(250));
   }
 
   // Extraire { code, message } selon {"error": {"code", "message"}}
@@ -279,7 +241,7 @@ export class LabmindApiService {
       return {
         code: 'connection_refused',
         message:
-          "Impossible de joindre le serveur backend sur http://127.0.0.1:8000. Vérifiez qu'uvicorn est démarré et qu'Angular tourne sur le port 3000."
+          "Impossible de joindre le serveur backend sur http://127.0.0.1:8000. Vérifiez qu'uvicorn est démarré."
       };
     }
     return {

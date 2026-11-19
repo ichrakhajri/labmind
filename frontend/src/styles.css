@@ -1,129 +1,333 @@
 :root {
-  --bleu: #1f5f8b;
-  --bleu-fonce: #174a6c;
-  --bleu-clair: #e8f1f8;
-  --vert: #2e7d5b;
-  --vert-clair: #e6f4ec;
-  --orange: #b9650f;
-  --orange-clair: #fdf0e1;
-  --jaune-clair: #fff7dc;
-  --gris: #6b7280;
-  --gris-clair: #f3f4f6;
-  --bordure: #d8dee4;
-  --texte: #1f2937;
+  --indigo: #4b32c3;
+  --indigo-hover: #3b24a8;
+  --indigo-soft: #f3f0ff;
+  --indigo-border: #e2dcfe;
+  --violet-accent: #7c3aed;
+
+  --vert: #15803d;
+  --vert-clair: #dcfce7;
+  --rouge: #b91c1c;
+  --rouge-clair: #fee2e2;
+  --bleu: #1d4ed8;
+  --bleu-clair: #dbeafe;
+  --gris: #64748b;
+  --gris-clair: #f1f5f9;
+
+  --fond: #fafafe;
+  --surface: #ffffff;
+  --bordure: #e6e4f2;
+  --texte: #18182b;
+  --texte-secondaire: #5b5b75;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
+html,
 body {
   margin: 0;
-  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  padding: 0;
+  min-height: 100%;
+  font-family: "Plus Jakarta Sans", "Segoe UI", Roboto, Arial, sans-serif;
   color: var(--texte);
-  background: #f8fafc;
+  background: var(--fond);
   line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: 1.9rem; margin: 0 0 12px; color: var(--bleu-fonce); }
-h2 { font-size: 1.3rem; margin: 28px 0 12px; color: var(--bleu-fonce); }
-p { margin: 0 0 12px; }
+h1 {
+  font-size: clamp(1.55rem, 3vw, 2.1rem);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--texte);
+}
 
-.container { max-width: 1040px; margin: 0 auto; padding: 32px 20px; }
-.narrow { max-width: 720px; }
+h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: var(--texte);
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+.thread-container {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 18px 48px;
+}
+
+/* Cartes conversationnelles */
+.assistant-card {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 10px 30px rgba(75, 50, 195, 0.05);
+}
+
+.file-bubble {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--indigo-soft);
+  border: 1px solid var(--indigo-border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.file-icon-box {
+  width: 38px;
+  height: 42px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #fecaca;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #dc2626;
+  font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+.file-icon-box.is-image {
+  border-color: var(--indigo-border);
+  color: var(--indigo);
+}
+
+.file-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.file-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--texte);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-sub {
+  font-size: 0.82rem;
+  color: var(--texte-secondaire);
+}
+
+/* Bannières */
+.disclaimer-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--indigo-soft);
+  border: 1px solid var(--indigo-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  color: #36278f;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.disclaimer-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--indigo);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.error-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 0.92rem;
+}
+
+/* Tableau simplifié */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table.simple-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.simple-table th {
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--texte-secondaire);
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--bordure);
+}
+
+table.simple-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f1effa;
+  vertical-align: middle;
+  font-size: 0.94rem;
+}
+
+table.simple-table tr:last-child td {
+  border-bottom: none;
+}
+
+.param-name {
+  font-weight: 600;
+  color: var(--texte);
+}
+
+.param-reason {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--texte-secondaire);
+  margin-top: 2px;
+}
+
+.param-value {
+  font-weight: 600;
+  color: var(--texte);
+  white-space: nowrap;
+}
+
+.param-ref {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--texte-secondaire);
+  white-space: nowrap;
+}
+
+/* Badges de statut (vocabulaire strictement non diagnostique) */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-dans {
+  background: var(--vert-clair);
+  color: var(--vert);
+}
+
+.badge-au-dessus {
+  background: var(--rouge-clair);
+  color: var(--rouge);
+}
+
+.badge-sous {
+  background: var(--bleu-clair);
+  color: var(--bleu);
+}
+
+.badge-indispo {
+  background: var(--gris-clair);
+  color: var(--gris);
+}
 
 /* Boutons */
 .btn {
-  display: inline-block;
-  padding: 12px 22px;
-  border-radius: 8px;
-  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.94rem;
   font-weight: 600;
   text-decoration: none;
-  border: 2px solid transparent;
+  border: 1.5px solid transparent;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
+
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
-.btn-primary { background: var(--bleu); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--bleu-fonce); }
-.btn-secondary { background: #fff; color: var(--bleu); border-color: var(--bleu); }
-.btn-secondary:hover:not(:disabled) { background: var(--bleu-clair); }
-.btn-danger { background: #fff; color: #991b1b; border-color: #dc2626; }
-.btn-danger:hover:not(:disabled) { background: #fef2f2; }
-.actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
 
-/* Cartes et messages */
-.card {
-  background: #fff;
-  border: 1px solid var(--bordure);
-  border-radius: 12px;
-  padding: 20px;
+.btn-primary {
+  background: var(--indigo);
+  color: #ffffff;
 }
-.notice {
-  background: var(--bleu-clair);
-  border: 1px solid #bfdbfe;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin: 16px 0;
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--indigo-hover);
 }
-.warning {
-  background: var(--jaune-clair);
-  border: 1px solid #fde68a;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin: 16px 0;
+
+.btn-secondary {
+  background: #ffffff;
+  color: var(--indigo);
+  border-color: #d6cffc;
 }
-.error-box {
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--indigo-soft);
+}
+
+.btn-ghost-danger {
+  background: transparent;
+  color: var(--texte-secondaire);
+  font-size: 0.84rem;
+  font-weight: 500;
+  padding: 6px 12px;
+}
+
+.btn-ghost-danger:hover:not(:disabled) {
+  color: #b91c1c;
   background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #7f1d1d;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin: 16px 0;
 }
 
-/* Tableaux */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; background: #fff; }
-th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--bordure); vertical-align: top; }
-th { background: var(--gris-clair); font-size: 0.9rem; }
+@media (max-width: 600px) {
+  .assistant-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
 
-/* Badges de statut (vocabulaire strictement arithmétique) */
-.badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.badge-dans { background: var(--vert-clair); color: var(--vert); }
-.badge-sous { background: var(--bleu-clair); color: var(--bleu-fonce); }
-.badge-au-dessus { background: var(--orange-clair); color: var(--orange); }
-.badge-indispo { background: var(--gris-clair); color: var(--gris); }
-
-/* En-tête et pied de page */
-.topbar {
-  background: var(--bleu-fonce);
-  color: #fff;
-  padding: 14px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.topbar .logo { color: #fff; font-weight: 700; font-size: 1.3rem; text-decoration: none; }
-.topbar .tagline { opacity: 0.85; font-size: 0.9rem; }
-.footer {
-  text-align: center;
-  padding: 20px;
-  color: var(--gris);
-  font-size: 0.85rem;
-  border-top: 1px solid var(--bordure);
-  margin-top: 40px;
+  table.simple-table th,
+  table.simple-table td {
+    padding: 10px 6px;
+    font-size: 0.87rem;
+  }
 }
 
 @media print {
-  .topbar, .footer, .no-print { display: none; }
-  body { background: #fff; }
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff;
+  }
+  .assistant-card {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
 }

@@ -1,33 +1,118 @@
-.doc-meta { color: var(--gris); }
-.categories { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
-.code-tag { color: var(--gris); font-size: 0.85rem; }
-.evidence-line { color: var(--gris); font-size: 0.8rem; margin-top: 4px; }
-.reason-text { font-size: 0.85rem; color: var(--gris); margin-top: 4px; }
-
-.resume {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin: 20px 0;
+.deleted-card {
+  text-align: center;
+  padding: 36px 24px;
 }
-.resume .card { text-align: center; }
-.resume strong { display: block; font-size: 2rem; color: var(--bleu); }
-.resume span { color: var(--gris); font-size: 0.9rem; }
 
-.explications { display: grid; gap: 14px; }
-.exp-header {
+.deleted-card p {
+  color: var(--texte-secondaire);
+  margin: 8px 0 20px;
+}
+
+.empty-msg {
+  color: var(--texte-secondaire);
+  padding: 12px 0;
+}
+
+.section-block {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #f1effa;
+}
+
+.soft-box {
+  background: #faf9ff;
+  border: 1px solid var(--indigo-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.explanation-list {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 10px;
 }
-.exp-header h3 { margin: 0; color: var(--bleu-fonce); }
-.explications p { margin: 0; }
-.exp-sources { margin-top: 8px; font-size: 0.85rem; color: var(--gris); }
 
-.sources { padding-left: 20px; }
-.sources li { margin-bottom: 6px; }
-.centre { text-align: center; }
-.centre-actions { justify-content: center; }
+.explanation-item {
+  margin: 0;
+  font-size: 0.94rem;
+  color: var(--texte);
+}
+
+.clean-p {
+  margin: 0;
+  font-size: 0.93rem;
+  color: var(--texte);
+}
+
+.muted-note {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--texte-secondaire);
+}
+
+.questions-list {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  color: var(--texte);
+  font-size: 0.93rem;
+}
+
+.questions-list li + li {
+  margin-top: 6px;
+}
+
+.sources-row {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #f1effa;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--indigo);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.source-link:hover {
+  text-decoration: underline;
+}
+
+.source-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.bottom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.delete-footer {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.auto-del-hint {
+  font-size: 0.82rem;
+  color: var(--texte-secondaire);
+}

@@ -1,171 +1,171 @@
-<div class="container">
-  @if (deletedMessage) {
-    <div class="card centre">
-      <h1>Données supprimées</h1>
-      <p>{{ deletedMessage }}</p>
-      <div class="actions centre-actions">
-        <a class="btn btn-primary" routerLink="/">Retour à l'accueil</a>
-      </div>
+<div class="thread-container">
+  @if (deleted) {
+    <div class="assistant-card deleted-card">
+      <h2>Données supprimées</h2>
+      <p>Votre document et vos résultats ont bien été effacés de ce serveur.</p>
+      <a class="btn btn-primary" routerLink="/">← Nouvelle analyse</a>
     </div>
   } @else if (task) {
-    <h1>Résultats de votre bilan biologique</h1>
-    @if (task.document?.filename) {
-      <p class="doc-meta">
-        Document analysé : <strong>{{ task.document.filename }}</strong>
-        @if (task.document.extraction_method) {
-          <span> ({{ task.document.extraction_method }})</span>
-        }
-      </p>
-    }
-
-    <!-- Disclaimer affiché tel quel depuis l'API -->
-    <div class="warning">{{ task.disclaimer }}</div>
-
-    <!-- Catégories détectées -->
-    @if (task.detected_categories?.length) {
-      <div class="categories">
-        @for (cat of task.detected_categories; track cat) {
-          <span class="badge badge-sous">{{ formatCategory(cat) }}</span>
-        }
+    <!-- Bulle du document déposé -->
+    <div class="file-bubble">
+      <div class="file-icon-box" [class.is-image]="isImageDoc">
+        {{ isImageDoc ? 'IMG' : 'PDF' }}
       </div>
-    }
-
-    <div class="resume">
-      <div class="card"><strong>{{ task.parameters.length }}</strong><span>paramètres extraits</span></div>
-      <div class="card"><strong>{{ countStatus('within_reference') }}</strong><span>dans la fourchette</span></div>
-      <div class="card"><strong>{{ countStatus('below_reference') + countStatus('above_reference') }}</strong><span>hors fourchette</span></div>
-      <div class="card"><strong>{{ countStatus('not_analyzed') }}</strong><span>non analysés</span></div>
+      <div class="file-meta">
+        <div class="file-name">{{ task.document?.filename || 'Votre bilan' }}</div>
+        <div class="file-sub">
+          {{ task.parameters?.length || 0 }} paramètre(s) extrait(s)
+        </div>
+      </div>
     </div>
 
-    <h2>Tableau des résultats</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Paramètre</th>
-            <th>Valeur</th>
-            <th>Fourchette du laboratoire</th>
-            <th>Position</th>
-            @if (hasConfidence) {
-              <th>Confiance</th>
-            }
-          </tr>
-        </thead>
-        <tbody>
-          @for (param of task.parameters; track param.code) {
-            <tr>
-              <td>
-                <div><strong>{{ param.name_printed }}</strong> <span class="code-tag">({{ param.code }})</span></div>
-                @if (param.evidence?.raw_text) {
-                  <div class="evidence-line">
-                    @if (param.evidence.page) { Page {{ param.evidence.page }} — }
-                    « {{ param.evidence.raw_text }} »
-                  </div>
-                }
-              </td>
-              <td>
-                @if (param.value !== null) {
-                  {{ param.value }} {{ param.unit || '' }}
-                } @else {
-                  Non disponible
-                }
-              </td>
-              <td>{{ formatReference(param.reference) }}</td>
-              <td>
-                <span [class]="getBadgeClass(param.status)">
-                  {{ getStatusLabel(param.status) }}
-                </span>
-                @if (param.status === 'not_analyzed' && param.reason) {
-                  <div class="reason-text">Motif : {{ param.reason }}</div>
-                }
-              </td>
-              @if (hasConfidence) {
-                <td>{{ param.confidence !== null ? (param.confidence * 100).toFixed(0) + ' %' : '—' }}</td>
+    <!-- Carte principale simplifiée -->
+    <div class="assistant-card">
+      <!-- Mention obligatoire -->
+      <div class="disclaimer-banner" role="note">
+        <span class="disclaimer-icon" aria-hidden="true">!</span>
+        <span>{{ task.disclaimer }}</span>
+      </div>
+
+      <!-- Tableau 3 colonnes épuré -->
+      @if (task.parameters?.length) {
+        <div class="table-wrap">
+          <table class="simple-table">
+            <thead>
+              <tr>
+                <th>Paramètre</th>
+                <th>Valeur (réf.)</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of task.parameters; track p.code) {
+                <tr>
+                  <td>
+                    <span class="param-name">{{ p.name_printed }}</span>
+                    @if (p.status === 'not_analyzed' && p.reason) {
+                      <span class="param-reason">{{ p.reason }}</span>
+                    }
+                  </td>
+                  <td>
+                    @if (p.value !== null && p.value !== undefined) {
+                      <span class="param-value">{{ p.value }} {{ p.unit || '' }}</span>
+                    } @else {
+                      <span class="param-value">—</span>
+                    }
+                    @if (formatRef(p.reference)) {
+                      <span class="param-ref">{{ formatRef(p.reference) }}</span>
+                    }
+                  </td>
+                  <td>
+                    <span [class]="statusClass(p.status)">
+                      @if (p.status === 'within_reference') {
+                        <span aria-hidden="true">✓</span>
+                      } @else if (p.status === 'above_reference') {
+                        <span aria-hidden="true">↑</span>
+                      } @else if (p.status === 'below_reference') {
+                        <span aria-hidden="true">↓</span>
+                      }
+                      {{ statusLabel(p.status) }}
+                    </span>
+                  </td>
+                </tr>
               }
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Explications pédagogiques sourcées -->
-    @if (hasExplanations) {
-      <h2>Explications pédagogiques</h2>
-      @if (task.explanations.summary) {
-        <p class="doc-meta">{{ task.explanations.summary }}</p>
-      }
-      <div class="explications">
-        @for (item of parameterExplanations; track item.code) {
-          <div class="card">
-            <div class="exp-header">
-              <h3>{{ getParameterName(item.code) }}</h3>
-              <span class="badge badge-indispo">{{ getExplanationStatusLabel(item.status) }}</span>
-            </div>
-            <p>{{ item.text }}</p>
-            @if (item.source_ids?.length) {
-              <div class="exp-sources">
-                Sources citées :
-                @for (sid of item.source_ids; track sid; let last = $last) {
-                  <span>{{ getSourceById(sid)?.title || sid }}</span>@if (!last) {<span>, </span>}
-                }
-              </div>
-            }
-          </div>
-        }
-      </div>
-    }
-
-    <!-- Sources documentaires -->
-    @if (task.sources?.length) {
-      <h2>Sources documentaires</h2>
-      <ul class="sources">
-        @for (src of task.sources; track src.source_id) {
-          <li>
-            <strong>{{ src.title }}</strong>
-            @if (src.organisme) { — {{ src.organisme }} }
-            @if (src.date) { ({{ src.date }}) }
-            @if (src.url) {
-              — <a [href]="src.url" target="_blank" rel="noopener noreferrer">Consulter</a>
-            }
-          </li>
-        }
-      </ul>
-    }
-
-    <div class="notice">
-      Confidentialité : vos résultats et fichiers temporaires sont supprimés
-      automatiquement après <strong>1 heure</strong>.
-    </div>
-
-    @if (mockPdfNotice) {
-      <div class="notice">
-        Mode simulation actif : passez <code>useMock = false</code> dans
-        <code>labmind-api.service.ts</code> pour télécharger le PDF réel.
-      </div>
-    }
-
-    <div class="actions no-print">
-      @if (api.useMock) {
-        <button class="btn btn-primary" type="button" (click)="telechargerPdfMock()">
-          Télécharger le rapport PDF
-        </button>
+            </tbody>
+          </table>
+        </div>
       } @else {
-        <a
-          class="btn btn-primary"
-          [href]="api.getReportPdfUrl(taskId)"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Télécharger le rapport PDF
-        </a>
+        <p class="empty-msg">Aucun paramètre exploitable n'a été identifié dans ce document.</p>
       }
-      <button class="btn btn-secondary" type="button" (click)="imprimer()">Imprimer</button>
-      <a class="btn btn-secondary" routerLink="/depot">Nouvelle analyse</a>
-      <button class="btn btn-danger" type="button" (click)="supprimerDonnees()">
-        Supprimer mes données
-      </button>
+
+      <!-- En résumé & explications simples -->
+      @if (readableExplanations.length || task.explanations?.summary) {
+        <div class="section-block">
+          <h2>En résumé :</h2>
+          @if (readableExplanations.length) {
+            <div class="explanation-list">
+              @for (item of readableExplanations; track item.name) {
+                <p class="explanation-item">
+                  <strong>{{ item.name }} :</strong> {{ item.text }}
+                </p>
+              }
+            </div>
+          } @else if (task.explanations?.summary) {
+            <p class="muted-note">{{ task.explanations.summary }}</p>
+          }
+        </div>
+      }
+
+      <!-- Hygiène de vie (si sourcée) -->
+      @if (lifestyleInfo && lifestyleInfo.isGrounded) {
+        <div class="section-block soft-box">
+          <h2>Repères généraux d'hygiène de vie</h2>
+          <p class="clean-p">{{ lifestyleInfo.text }}</p>
+        </div>
+      }
+
+      <!-- Questions à préparer pour le médecin -->
+      @if (consultationQuestions.length) {
+        <div class="section-block">
+          <h2>Questions à préparer pour votre médecin</h2>
+          <ul class="questions-list">
+            @for (q of consultationQuestions; track q) {
+              <li>{{ q }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <!-- Liens sources officielles -->
+      @if (task.sources?.length) {
+        <div class="sources-row">
+          @for (s of task.sources; track s.source_id) {
+            <a [href]="s.url" target="_blank" rel="noopener" class="source-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
+                />
+              </svg>
+              <span>Plus d'informations : {{ s.organisme }}</span>
+            </a>
+          }
+        </div>
+      }
     </div>
-  } @else {
-    <p>Chargement des résultats…</p>
+
+    <!-- Actions principales -->
+    <div class="bottom-actions no-print">
+      <a class="btn btn-secondary" routerLink="/">← Nouvelle analyse</a>
+
+      <a class="btn btn-primary" [href]="pdfUrl" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+        </svg>
+        Télécharger le rapport PDF
+      </a>
+    </div>
+
+    <div class="delete-footer no-print">
+      <button
+        type="button"
+        class="btn btn-ghost-danger"
+        [disabled]="isDeleting"
+        (click)="deleteData()"
+      >
+        {{ isDeleting ? 'Suppression...' : 'Supprimer mes données maintenant' }}
+      </button>
+      <span class="auto-del-hint">· Suppression automatique après 1h</span>
+    </div>
+
+    @if (errorMessage) {
+      <div class="error-box" style="margin-top: 12px">{{ errorMessage }}</div>
+    }
   }
 </div>

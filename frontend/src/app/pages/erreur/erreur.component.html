@@ -1,22 +1,7 @@
-<div class="container narrow centre">
-  <div class="icone">⚠</div>
-  <h1>Nous n'avons pas pu terminer l'analyse</h1>
-  <p>{{ errorMessage }}</p>
-  @if (errorCode) {
-    <p class="code-err">Code : {{ errorCode }}</p>
-  }
-
-  <div class="card conseils">
-    <strong>Quelques conseils :</strong>
-    <ul>
-      <li>Utilisez une image nette, bien éclairée et non coupée.</li>
-      <li>Préférez le PDF d'origine envoyé par votre laboratoire.</li>
-      <li>Vérifiez les formats acceptés : PDF, PNG, JPG, JPEG (max 10 Mo).</li>
-    </ul>
-  </div>
-
-  <div class="actions centre-actions">
-    <a class="btn btn-primary" routerLink="/depot">Réessayer</a>
-    <a class="btn btn-secondary" routerLink="/">Retour à l'accueil</a>
+<div class="thread-container">
+  <div class="assistant-card err-card">
+    <h2>Impossible d'analyser ce document</h2>
+    <div class="error-box" style="margin: 14px 0 22px">{{ message }}</div>
+    <a class="btn btn-primary" routerLink="/">← Nouvelle analyse</a>
   </div>
 </div>

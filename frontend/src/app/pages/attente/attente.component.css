@@ -1,16 +1,25 @@
-.centre { text-align: center; }
+.wait-card {
+  text-align: center;
+  padding: 36px 24px;
+}
 
 .spinner {
-  width: 56px; height: 56px;
-  margin: 24px auto;
-  border: 6px solid var(--bleu-clair);
-  border-top-color: var(--bleu);
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 18px;
+  border: 3.5px solid var(--indigo-soft);
+  border-top-color: var(--indigo);
   border-radius: 50%;
-  animation: tourner 1s linear infinite;
+  animation: spin 0.9s linear infinite;
 }
-@keyframes tourner { to { transform: rotate(360deg); } }
 
-.etapes { text-align: left; max-width: 380px; margin: 24px auto; }
-.etape { padding: 6px 0; color: var(--gris); }
-.etape.fait { color: var(--vert); }
-.etape.actif { color: var(--bleu-fonce); font-weight: 600; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.wait-desc {
+  max-width: 460px;
+  margin: 8px auto 18px;
+  color: var(--texte-secondaire);
+  font-size: 0.93rem;
+}
