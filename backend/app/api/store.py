@@ -1,16 +1,11 @@
-"""Gestionnaire de tâches appuyé sur SQLite (`TaskRepository`) et l'agent."""
+"""Gestionnaire de tâches appuyé sur SQLite (`TaskRepository`), l'agent et le rapport PDF."""
 from __future__ import annotations
 
-import io
 import logging
 import threading
 import uuid
 from pathlib import Path
 from typing import Callable
-
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.agent import AgentOrchestrator, AgentState
 from app.core.config import Settings
@@ -20,6 +15,7 @@ from app.database import (
     create_session_factory,
     init_db,
 )
+from app.report import build_labmind_report_pdf
 from app.schemas import AnswerIn, Task, TaskStatus
 
 logger = logging.getLogger("labmind.api")
@@ -42,23 +38,6 @@ def _cleanup_file(file_path: str | Path) -> None:
         logger.warning("Impossible de supprimer un fichier temporaire.")
 
 
-def _build_placeholder_pdf_bytes(task: Task) -> bytes:
-    """Produit un PDF provisoire valide en attendant le générateur complet (Étape 8)."""
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
-    styles = getSampleStyleSheet()
-    elements = [
-        Paragraph("<b>LabMind — Rapport technique provisoire</b>", styles["Title"]),
-        Spacer(1, 12),
-        Paragraph(f"Identifiant de tâche : {task.task_id}", styles["Normal"]),
-        Paragraph(f"Nombre de paramètres : {len(task.parameters)}", styles["Normal"]),
-        Spacer(1, 12),
-        Paragraph(task.disclaimer, styles["Normal"]),
-    ]
-    doc.build(elements)
-    return buffer.getvalue()
-
-
 class TaskManager:
     """Gestionnaire thread-safe des tâches persistées dans SQLite."""
 
@@ -71,7 +50,7 @@ class TaskManager:
     ) -> None:
         self.settings = settings
         self._orchestrator_factory = orchestrator_factory or AgentOrchestrator
-        self._report_builder = report_builder or _build_placeholder_pdf_bytes
+        self._report_builder = report_builder or build_labmind_report_pdf
         self._lock = threading.RLock()
 
         if repository is None:

@@ -30,10 +30,11 @@ LabMind ne pose aucun diagnostic et ne prescrit aucun traitement.
     backend/app/core/            configuration (variables LABMIND_*)
     backend/app/api/             API FastAPI v1 (routes, gestionnaire de tâches, erreurs)
     backend/app/database/        modèles SQLAlchemy, session SQLite (FK ON) et repository + purge 1 h
+    backend/app/report/          générateur du rapport PDF pédagogique final (ReportLab)
     backend/app/main.py          point d'entrée uvicorn et branchement RAG au démarrage
     backend/app/extraction/      PDF (texte + tableaux par page) et OCR Tesseract avec confiance
     backend/app/identification/  catalogue 6 catégories (21 paramètres), parsing et normalisation
-    backend/app/validation/      contrôles techniques, seuils unilatéraux, calcul de confiance
+    backend/app/validation/      contrôles techniques, seuils unilatérales, calcul de confiance
     backend/app/knowledge/       registre des sources, découpage en passages et index FAISS
     backend/app/generation/      client Ollama local, RAG, contrôle d'ancrage et repli neutre
     backend/app/agent/           état, traces, outils, planificateur et boucle avec reprise utilisateur
@@ -45,7 +46,7 @@ LabMind ne pose aucun diagnostic et ne prescrit aucun traitement.
     evaluation/                  documents de test, vérités terrain et rapports d'évaluation
     docs/                        contrat API v1, archive Colab et décisions techniques
 
-## État du projet (fin de l'Étape 7)
+## État du projet (fin de l'Étape 8)
 Fait :
 - Backend modulaire complet couvrant les 6 catégories (21 paramètres), sans système expert.
 - RAG local (FAISS + `multilingual-e5-small` + Ollama `qwen2.5:1.5b` + contrôle d'ancrage).
@@ -54,7 +55,7 @@ Fait :
 - Dispositif d'évaluation séparée par champ dans `evaluation/`.
 - API FastAPI v1 complète (`POST /v1/tasks`, `GET`, `POST /answer`, `GET /report.pdf`, `DELETE`, OpenAPI).
 - Persistance SQLite (9 entités), suppression en cascade et purge automatique après 1 h.
+- Génération du rapport PDF final LabMind avec résultats, explications sourcées, limites et précautions.
 
 Pas encore fait :
-- Génération du rapport PDF final LabMind avec résultats, explications et sources citées (Étape 8).
-- Durcissement sécurité avancé, complément du corpus et intégration finale frontend (Étapes 9 à 10).
+- Durcissement sécurité avancé (validation magic-bytes, fichiers malformés), complément du corpus officiel et validation finale de bout en bout (Étape 9).
