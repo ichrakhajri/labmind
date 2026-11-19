@@ -24,7 +24,7 @@ from .api.store import TaskManager
 
 logger = logging.getLogger("labmind.startup")
 
-DEFAULT_INDEX_DIR = PROJECT_DIR / "knowledge_corpus" / "processed"
+DEFAULT_INDEX_DIR = PROJECT_DIR / "knowledge_corpus" / "processed" / "index"
 
 
 def _env_flag(name: str, default: bool = True) -> bool:
