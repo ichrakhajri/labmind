@@ -23,7 +23,7 @@ class ExplanationStatus(str, Enum):
 
 
 class RetrievedPassage(BaseModel):
-    """Passage documentaire issu d'une source vérifiée (fourni par le futur RAG)."""
+    """Passage documentaire issu d'une source vérifiée (fourni par le RAG)."""
 
     passage_id: str = Field(min_length=1)
     source: Source
@@ -52,11 +52,33 @@ class ParameterExplanation(BaseModel):
         return self
 
 
+class LifestyleInfo(BaseModel):
+    """Informations générales d'hygiène de vie issues exclusivement de sources officielles."""
+
+    status: ExplanationStatus
+    text: str = Field(min_length=1)
+    source_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def check_citations_consistency(self) -> LifestyleInfo:
+        if self.status == ExplanationStatus.grounded and not self.source_ids:
+            raise ValueError(
+                "Une information d'hygiène de vie au statut 'grounded' doit citer au moins un source_id."
+            )
+        if self.status != ExplanationStatus.grounded and self.source_ids:
+            raise ValueError(
+                "Une information d'hygiène de vie sans source suffisante ne doit pas citer de source_id."
+            )
+        return self
+
+
 class GenerationRequest(BaseModel):
     """Entrée attendue par tout générateur d'explications."""
 
     parameters: list[ParameterResult] = Field(default_factory=list)
     passages: list[RetrievedPassage] = Field(default_factory=list)
+    lifestyle_passages: list[RetrievedPassage] = Field(default_factory=list)
+    include_consultation_questions: bool = False
 
 
 class GenerationResult(BaseModel):
@@ -64,22 +86,29 @@ class GenerationResult(BaseModel):
 
     summary: str | None = None
     parameter_explanations: list[ParameterExplanation] = Field(default_factory=list)
+    lifestyle_info: LifestyleInfo | None = None
+    consultation_questions: list[str] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
 
     def to_task_explanations(self) -> dict:
         """Sérialise la partie explicative pour le champ `Task.explanations`."""
-        return {
+        payload: dict = {
             "summary": self.summary,
             "parameter_explanations": [
                 item.model_dump(mode="json") for item in self.parameter_explanations
             ],
         }
+        if self.lifestyle_info is not None:
+            payload["lifestyle_info"] = self.lifestyle_info.model_dump(mode="json")
+        if self.consultation_questions:
+            payload["consultation_questions"] = list(self.consultation_questions)
+        return payload
 
 
 @runtime_checkable
 class ExplanationGenerator(Protocol):
-    """Interface à implémenter par tout générateur (repli neutre ou futur LLM+RAG)."""
+    """Interface à implémenter par tout générateur (repli neutre ou LLM+RAG)."""
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         """Produit des explications uniquement à partir de la requête fournie."""
@@ -89,11 +118,16 @@ class ExplanationGenerator(Protocol):
 def find_citation_errors(
     result: GenerationResult,
     passages: list[RetrievedPassage],
+    lifestyle_passages: list[RetrievedPassage] | None = None,
 ) -> list[str]:
     """Vérifie techniquement la cohérence entre citations, sources exposées et passages reçus."""
     errors: list[str] = []
 
-    allowed_source_ids = {p.source.source_id for p in passages}
+    all_passages = list(passages)
+    if lifestyle_passages:
+        all_passages.extend(lifestyle_passages)
+
+    allowed_source_ids = {p.source.source_id for p in all_passages}
     exposed_source_ids = {s.source_id for s in result.sources}
 
     if result.disclaimer != DISCLAIMER:
@@ -114,6 +148,17 @@ def find_citation_errors(
             if sid not in exposed_source_ids:
                 errors.append(
                     f"Paramètre {exp.code} : source_id '{sid}' cité mais absent de result.sources."
+                )
+
+    if result.lifestyle_info is not None:
+        for sid in result.lifestyle_info.source_ids:
+            if sid not in allowed_source_ids:
+                errors.append(
+                    f"Hygiène de vie : source_id inconnu '{sid}'."
+                )
+            if sid not in exposed_source_ids:
+                errors.append(
+                    f"Hygiène de vie : source_id '{sid}' cité mais absent de result.sources."
                 )
 
     return errors

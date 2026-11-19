@@ -1,6 +1,7 @@
 """Outils indépendants exécutables par l'agent LabMind."""
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import Callable
 
@@ -15,6 +16,7 @@ from app.generation import (
 from app.generation.interface import RetrievedPassage
 from app.identification.catalog import ACCEPTED_UNITS
 from app.identification.parser import identify_parameters, identify_parameters_from_pages
+from app.knowledge.registry import MedicalCategory
 from app.knowledge.retriever import FaissKnowledgeIndex
 from app.schemas import (
     ExtractionMethod,
@@ -243,16 +245,29 @@ def run_request_user_confirmation(state: AgentState) -> ToolExecutionResult:
     )
 
 
+def _supports_category_filter(knowledge_index: object) -> bool:
+    """Vérifie si l'index documentaire accepte le paramètre `categories`."""
+    search_fn = getattr(knowledge_index, "search", None)
+    if not callable(search_fn):
+        return False
+    try:
+        sig = inspect.signature(search_fn)
+    except (TypeError, ValueError):
+        return False
+    return "categories" in sig.parameters
+
+
 def run_retrieve_knowledge(
     state: AgentState,
     knowledge_index: FaissKnowledgeIndex | None = None,
     top_k_per_parameter: int = 2,
 ) -> ToolExecutionResult:
-    """Recherche des passages documentaires ciblés pour chaque paramètre analysable."""
+    """Recherche des passages documentaires ciblés pour les paramètres et l'hygiène de vie."""
     state.knowledge_searched = True
 
     if knowledge_index is None:
         state.retrieved_passages = []
+        state.lifestyle_passages = []
         return ToolExecutionResult(
             success=True,
             summary="Aucun index documentaire chargé : 0 passage récupéré.",
@@ -260,11 +275,13 @@ def run_retrieve_knowledge(
 
     seen_passage_ids: set[str] = set()
     collected: list[RetrievedPassage] = []
+    active_names: list[str] = []
 
     for param in state.validated_parameters:
         if param.status == ParameterStatus.not_analyzed:
             continue
 
+        active_names.append(param.name_printed)
         query = f"{param.name_printed} {param.code} prise de sang"
         found = knowledge_index.search(query=query, top_k=top_k_per_parameter)
         for passage in found:
@@ -272,11 +289,29 @@ def run_retrieve_knowledge(
                 seen_passage_ids.add(passage.passage_id)
                 collected.append(passage)
 
+    lifestyle_found: list[RetrievedPassage] = []
+    if active_names and _supports_category_filter(knowledge_index):
+        lifestyle_query = (
+            "alimentation activite physique hygiene de vie " + " ".join(active_names[:4])
+        )
+        lifestyle_found = knowledge_index.search(
+            query=lifestyle_query,
+            top_k=3,
+            categories=[MedicalCategory.hygiene_de_vie],
+        )
+
     state.retrieved_passages = collected
-    return ToolExecutionResult(
-        success=True,
-        summary=f"{len(collected)} passage(s) documentaire(s) récupéré(s).",
-    )
+    state.lifestyle_passages = lifestyle_found
+
+    if lifestyle_found:
+        summary = (
+            f"{len(collected)} passage(s) documentaire(s) et "
+            f"{len(lifestyle_found)} passage(s) hygiène de vie récupéré(s)."
+        )
+    else:
+        summary = f"{len(collected)} passage(s) documentaire(s) récupéré(s)."
+
+    return ToolExecutionResult(success=True, summary=summary)
 
 
 def run_generate_explanations(
@@ -288,6 +323,8 @@ def run_generate_explanations(
     request = GenerationRequest(
         parameters=state.validated_parameters,
         passages=state.retrieved_passages,
+        lifestyle_passages=state.lifestyle_passages,
+        include_consultation_questions=True,
     )
     state.generation_result = active_generator.generate(request)
 

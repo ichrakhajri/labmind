@@ -37,6 +37,26 @@
       "notes": "Fiche officielle ameli.fr complète (sections dépliées)."
     },
     {
+      "source_id": "anses-reperes-nutritionnels-2017",
+      "title": "L'Anses actualise les repères de consommations alimentaires pour la population française",
+      "organisme": "ANSES",
+      "url": "https://www.anses.fr/fr/actualite/lanses-actualise-reperes-consommations-alimentaires-population-francaise",
+      "published_date": "2017-01-23",
+      "categories": [
+        "hygiene_de_vie"
+      ],
+      "themes": [
+        "alimentation",
+        "activite_physique",
+        "sedentarite",
+        "reperes_nutritionnels"
+      ],
+      "reuse_conditions": "Contenu informatif public ANSES (anses.fr), cité avec lien source",
+      "local_filename": "anses_reperes_nutritionnels.txt",
+      "status": "collected",
+      "notes": "Actualité officielle ANSES sur la révision des repères alimentaires adultes (PNNS)."
+    },
+    {
       "source_id": "plan-inserm-fer-anemie",
       "title": "Dossier métabolisme du fer et anémie",
       "organisme": "Inserm",
@@ -100,19 +120,6 @@
       "local_filename": null,
       "status": "pending_collection",
       "notes": "Vérifier fiche HAS ou société savante d'hépatologie (AFEF) / ameli.fr."
-    },
-    {
-      "source_id": "plan-anses-reperes-nutritionnels",
-      "title": "Repères nutritionnels, alimentation et activité physique (PNNS)",
-      "organisme": "ANSES",
-      "url": "https://www.anses.fr/",
-      "published_date": null,
-      "categories": ["hygiene_de_vie"],
-      "themes": ["alimentation", "activite_physique", "sedentarite"],
-      "reuse_conditions": "À vérifier sur l'avis ou dossier ANSES / Santé publique France",
-      "local_filename": null,
-      "status": "pending_collection",
-      "notes": "Servira pour les informations générales d'alimentation et d'hygiène de vie sourcées."
     }
   ]
 }

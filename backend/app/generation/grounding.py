@@ -1,7 +1,7 @@
 """Contrôle d'ancrage (grounding check) et de prudence sur les explications générées.
 
 Vérifie qu'une explication marquée 'grounded' :
-1. ne contient aucune formulation de diagnostic ou de prescription ;
+1. ne contient aucune formulation de diagnostic ou de traitement ;
 2. n'introduit aucun chiffre absent du paramètre et des passages cités ;
 3. recouvre lexicalement les extraits documentaires cités.
 """
@@ -14,7 +14,12 @@ from pydantic import BaseModel, Field
 
 from app.schemas import ParameterResult
 
-from .interface import ExplanationStatus, ParameterExplanation, RetrievedPassage
+from .interface import (
+    ExplanationStatus,
+    LifestyleInfo,
+    ParameterExplanation,
+    RetrievedPassage,
+)
 
 SAFETY_FORBIDDEN_PATTERNS = (
     r"\bvous\s+(?:souffrez|êtes\s+atteint)\b",
@@ -142,6 +147,24 @@ def _allowed_numbers_for(
     return allowed
 
 
+def _allowed_numbers_for_lifestyle(
+    parameters: list[ParameterResult],
+    cited_passages: list[RetrievedPassage],
+) -> set[str]:
+    allowed: set[str] = set()
+    for parameter in parameters:
+        for num in (parameter.value, parameter.reference.min, parameter.reference.max):
+            if num is not None:
+                allowed.add(f"{float(num):g}")
+
+    for passage in cited_passages:
+        allowed.update(_extract_numbers(passage.excerpt))
+        allowed.update(_extract_numbers(passage.source.source_id))
+        if passage.source.date:
+            allowed.update(_extract_numbers(passage.source.date))
+    return allowed
+
+
 def check_safety_compliance(text: str) -> list[str]:
     """Vérifie l'absence de formulation de diagnostic ou de traitement."""
     lowered = text.lower()
@@ -184,7 +207,7 @@ def check_explanation_grounding(
     reasons: list[str] = []
     safety_violations = check_safety_compliance(explanation.text)
     if safety_violations:
-        reasons.append("Formulation non conforme aux règles de prudence détectée.")
+        reasons.append("Formulation non conforme aux garde-fous de prudence détectée.")
 
     allowed_nums = _allowed_numbers_for(parameter, cited_passages)
     found_nums = _extract_numbers(explanation.text)
@@ -221,3 +244,107 @@ def check_explanation_grounding(
         safety_violations=safety_violations,
         reasons=reasons,
     )
+
+
+def check_lifestyle_grounding(
+    lifestyle_info: LifestyleInfo,
+    lifestyle_passages: list[RetrievedPassage],
+    parameters: list[ParameterResult] | None = None,
+    min_overlap_ratio: float = 0.25,
+) -> GroundingCheckResult:
+    """Vérifie qu'une synthèse d'hygiène de vie est sûre et ancrée dans ses passages cités."""
+    if lifestyle_info.status != ExplanationStatus.grounded:
+        return GroundingCheckResult(
+            is_grounded=False,
+            overlap_ratio=0.0,
+            reasons=["La section d'hygiène de vie n'est pas au statut 'grounded'."],
+        )
+
+    passages_by_sid: dict[str, list[RetrievedPassage]] = {}
+    for passage in lifestyle_passages:
+        passages_by_sid.setdefault(passage.source.source_id, []).append(passage)
+
+    cited_passages: list[RetrievedPassage] = []
+    for sid in lifestyle_info.source_ids:
+        cited_passages.extend(passages_by_sid.get(sid, []))
+
+    if not cited_passages:
+        return GroundingCheckResult(
+            is_grounded=False,
+            overlap_ratio=0.0,
+            reasons=["Aucun passage d'hygiène de vie correspondant aux source_ids cités."],
+        )
+
+    reasons: list[str] = []
+    safety_violations = check_safety_compliance(lifestyle_info.text)
+    if safety_violations:
+        reasons.append("Formulation non conforme aux garde-fous de prudence détectée.")
+
+    allowed_nums = _allowed_numbers_for_lifestyle(parameters or [], cited_passages)
+    found_nums = _extract_numbers(lifestyle_info.text)
+    ungrounded_numbers = sorted(found_nums - allowed_nums)
+    if ungrounded_numbers:
+        reasons.append(
+            f"Nombres non présents dans les passages d'hygiène de vie : {', '.join(ungrounded_numbers)}."
+        )
+
+    text_for_tokens = lifestyle_info.text
+    for sid in lifestyle_info.source_ids:
+        text_for_tokens = text_for_tokens.replace(sid, " ")
+
+    text_tokens = _content_tokens(text_for_tokens)
+    passage_tokens: set[str] = set()
+    for passage in cited_passages:
+        passage_tokens.update(_content_tokens(passage.excerpt))
+
+    if not text_tokens:
+        overlap_ratio = 0.0
+        reasons.append("Texte d'hygiène de vie trop pauvre en termes vérifiables.")
+    else:
+        overlap_ratio = len(text_tokens & passage_tokens) / len(text_tokens)
+        if overlap_ratio < min_overlap_ratio:
+            reasons.append(
+                f"Recouvrement lexical insuffisant ({overlap_ratio:.2f} < {min_overlap_ratio:.2f})."
+            )
+
+    return GroundingCheckResult(
+        is_grounded=len(reasons) == 0,
+        overlap_ratio=round(overlap_ratio, 4),
+        ungrounded_numbers=ungrounded_numbers,
+        safety_violations=safety_violations,
+        reasons=reasons,
+    )
+
+
+def sanitize_consultation_questions(
+    raw_questions: list[object],
+    max_questions: int = 4,
+) -> list[str]:
+    """Filtre les questions générées pour garantir neutralité, sûreté et format."""
+    cleaned_questions: list[str] = []
+    seen_normalized: set[str] = set()
+
+    for item in raw_questions:
+        if not isinstance(item, str):
+            continue
+
+        stripped = re.sub(r"^(?:[-*•]+|\d+[.)])\s*", "", item.strip())
+        normalized = " ".join(stripped.split())
+
+        if len(normalized) < 10 or len(normalized) > 240:
+            continue
+        if not normalized.endswith("?"):
+            continue
+        if check_safety_compliance(normalized):
+            continue
+
+        dedup_key = normalized.lower()
+        if dedup_key in seen_normalized:
+            continue
+        seen_normalized.add(dedup_key)
+        cleaned_questions.append(normalized)
+
+        if len(cleaned_questions) >= max_questions:
+            break
+
+    return cleaned_questions

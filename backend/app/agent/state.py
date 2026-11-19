@@ -78,6 +78,7 @@ class AgentState(BaseModel):
 
     knowledge_searched: bool = False
     retrieved_passages: list[RetrievedPassage] = Field(default_factory=list)
+    lifestyle_passages: list[RetrievedPassage] = Field(default_factory=list)
     generation_result: GenerationResult | None = None
 
     iterations: int = 0

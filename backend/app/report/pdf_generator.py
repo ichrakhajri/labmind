@@ -3,6 +3,8 @@
 Règles strictes respectées :
 - Affiche uniquement les résultats extraits et les fourchettes du laboratoire.
 - Affiche les explications documentées avec leurs citations (`source_id`, URL, date).
+- Affiche les informations générales d'hygiène de vie uniquement si sourcées par RAG.
+- Affiche les questions générées pour la consultation médicale si disponibles.
 - N'invente jamais de valeur, de référence ou d'explication sans source.
 - Affiche le message de précaution (`task.disclaimer`) exactement une fois.
 """
@@ -100,7 +102,7 @@ def _format_confidence(param: ParameterResult) -> str:
 
 
 def _has_general_lifestyle_sources(sources: list[Source]) -> bool:
-    keywords = ("alimentation", "nutrition", "hygiene", "hygiène", "vie", "anses")
+    keywords = ("alimentation", "nutrition", "hygiene", "hygiène", "vie", "anses", "mangerbouger")
     for src in sources:
         haystack = f"{src.source_id} {src.title} {src.organisme}".lower()
         if any(kw in haystack for kw in keywords):
@@ -314,23 +316,60 @@ def build_labmind_report_pdf(task: Task) -> bytes:
             )
         )
 
-    # 5. Informations générales hygiène de vie / nutrition (uniquement si sources dédiées)
-    if task.sources and _has_general_lifestyle_sources(task.sources):
-        elements.append(Paragraph("4. Informations générales documentées (hygiène de vie)", heading_style))
-        lifestyle_sources = [s for s in task.sources if _has_general_lifestyle_sources([s])]
-        for src in lifestyle_sources:
-            elements.append(
-                Paragraph(
-                    f"• <b>{escape(src.organisme)}</b> — {escape(src.title)} ({escape(src.source_id)})",
-                    body_style,
-                )
-            )
-        section_sources_idx = 5
-    else:
-        section_sources_idx = 4
+    # 5. Informations générales d'hygiène de vie (uniquement si sourcées par RAG)
+    section_idx = 4
+    lifestyle_info = explanations.get("lifestyle_info")
+    has_grounded_lifestyle = (
+        isinstance(lifestyle_info, dict)
+        and lifestyle_info.get("status") == "grounded"
+        and bool(str(lifestyle_info.get("text") or "").strip())
+    )
+    has_legacy_lifestyle_sources = bool(task.sources and _has_general_lifestyle_sources(task.sources))
 
-    # 6. Sources documentaires citées
-    elements.append(Paragraph(f"{section_sources_idx}. Sources documentaires citées", heading_style))
+    if has_grounded_lifestyle or has_legacy_lifestyle_sources:
+        elements.append(
+            Paragraph(
+                f"{section_idx}. Informations générales documentées (hygiène de vie)",
+                heading_style,
+            )
+        )
+        if has_grounded_lifestyle:
+            assert isinstance(lifestyle_info, dict)
+            ls_text = str(lifestyle_info.get("text") or "").strip()
+            ls_sources = [str(s) for s in (lifestyle_info.get("source_ids") or []) if str(s).strip()]
+            ls_citation = f" <i>[Sources : {escape(', '.join(ls_sources))}]</i>" if ls_sources else ""
+            elements.append(Paragraph(f"{escape(ls_text)}{ls_citation}", body_style))
+        else:
+            lifestyle_sources = [s for s in task.sources if _has_general_lifestyle_sources([s])]
+            for src in lifestyle_sources:
+                elements.append(
+                    Paragraph(
+                        f"• <b>{escape(src.organisme)}</b> — {escape(src.title)} ({escape(src.source_id)})",
+                        body_style,
+                    )
+                )
+        section_idx += 1
+
+    # 6. Questions à préparer pour le médecin (générées dynamiquement par le LLM)
+    consultation_questions = [
+        str(q).strip()
+        for q in (explanations.get("consultation_questions") or [])
+        if str(q).strip()
+    ]
+    if consultation_questions:
+        elements.append(
+            Paragraph(
+                f"{section_idx}. Questions à préparer pour votre médecin",
+                heading_style,
+            )
+        )
+        for question in consultation_questions:
+            elements.append(Paragraph(f"• {escape(question)}", body_style))
+            elements.append(Spacer(1, 2))
+        section_idx += 1
+
+    # 7. Sources documentaires citées
+    elements.append(Paragraph(f"{section_idx}. Sources documentaires citées", heading_style))
     if task.sources:
         for src in task.sources:
             date_txt = f" — {src.date}" if src.date else ""
@@ -346,7 +385,7 @@ def build_labmind_report_pdf(task: Task) -> bytes:
             Paragraph("Aucune source documentaire citée pour cette analyse.", body_style)
         )
 
-    # 7. Message de précaution unique
+    # 8. Message de précaution unique
     elements.append(Spacer(1, 12))
     elements.append(Paragraph(escape(task.disclaimer), disclaimer_style))
 
