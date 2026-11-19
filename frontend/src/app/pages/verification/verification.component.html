@@ -1,0 +1,77 @@
+<div class="container narrow">
+  @if (task && task.pending_question) {
+    <h1>Précision demandée</h1>
+    <p>
+      Une information sur votre document doit être confirmée avant de continuer
+      l'analyse.
+    </p>
+
+    @if (matchedParameter) {
+      <div class="card context-card">
+        <strong>{{ matchedParameter.name_printed }} ({{ matchedParameter.code }})</strong>
+        @if (matchedParameter.value !== null) {
+          <span> — Valeur lue : {{ matchedParameter.value }}</span>
+        }
+        @if (matchedParameter.evidence?.raw_text) {
+          <p class="raw-text">Extrait du document : « {{ matchedParameter.evidence.raw_text }} »</p>
+        }
+      </div>
+    }
+
+    <div class="card question-card">
+      <h2>{{ task.pending_question.message }}</h2>
+
+      <div class="actions">
+        @for (opt of optionsList; track opt) {
+          <button
+            type="button"
+            class="btn"
+            [class.btn-primary]="opt !== 'je ne sais pas' && opt !== 'autre'"
+            [class.btn-secondary]="opt === 'je ne sais pas' || opt === 'autre'"
+            [disabled]="isSubmitting"
+            (click)="onOptionClick(opt)"
+          >
+            {{ opt }}
+          </button>
+        }
+      </div>
+
+      @if (showCustomInput) {
+        <div class="custom-box">
+          <label for="customAnswer">Précisez la valeur ou l'unité indiquée sur votre compte rendu :</label>
+          <div class="custom-row">
+            <input
+              id="customAnswer"
+              type="text"
+              [value]="customValue"
+              (input)="customValue = $any($event.target).value"
+              placeholder="Ex. : %, g/L, 12.5..."
+            />
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="isSubmitting"
+              (click)="sendAnswer(customValue)"
+            >
+              Valider
+            </button>
+          </div>
+        </div>
+      }
+
+      @if (errorMessage) {
+        <div class="error-box">{{ errorMessage }}</div>
+      }
+    </div>
+
+    <div class="notice">{{ task.disclaimer }}</div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-danger" (click)="supprimerDonnees()">
+        Supprimer mes données
+      </button>
+    </div>
+  } @else {
+    <p>Chargement de la question…</p>
+  }
+</div>

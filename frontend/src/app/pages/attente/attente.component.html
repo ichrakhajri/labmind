@@ -1,0 +1,18 @@
+<div class="container narrow centre">
+  <div class="spinner"></div>
+  <h1>Analyse en cours…</h1>
+  <p>Cela peut prendre quelques instants. Merci de ne pas fermer cette page.</p>
+
+  <div class="card etapes">
+    <div class="etape fait">✔ Document reçu</div>
+    <div class="etape" [class.actif]="status === 'received' || status === 'processing'">
+      ⏳ Traitement et lecture du document ({{ status }})
+    </div>
+    <div class="etape">○ Vérification des données si nécessaire</div>
+    <div class="etape">○ Préparation du bilan</div>
+  </div>
+
+  @if (disclaimer) {
+    <div class="notice">{{ disclaimer }}</div>
+  }
+</div>

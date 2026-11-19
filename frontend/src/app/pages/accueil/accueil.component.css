@@ -1,0 +1,28 @@
+.hero {
+  background: linear-gradient(135deg, var(--bleu-clair), #fff);
+  text-align: center;
+  padding: 64px 20px 48px;
+}
+.hero-text {
+  max-width: 640px;
+  margin: 0 auto 24px;
+  font-size: 1.1rem;
+}
+.hint { margin-top: 14px; color: var(--gris); font-size: 0.9rem; }
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.step { text-align: center; }
+.step h3 { margin: 8px 0; color: var(--bleu-fonce); }
+.num {
+  width: 40px; height: 40px;
+  line-height: 40px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: var(--bleu);
+  color: #fff;
+  font-weight: 700;
+}
