@@ -1,11 +1,10 @@
-"""Gestionnaire de tâches en mémoire reliant l'API à l'AgentOrchestrator."""
+"""Gestionnaire de tâches appuyé sur SQLite (`TaskRepository`) et l'agent."""
 from __future__ import annotations
 
 import io
 import logging
 import threading
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -15,25 +14,23 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.agent import AgentOrchestrator, AgentState
 from app.core.config import Settings
+from app.database import (
+    TaskRepository,
+    create_db_engine,
+    create_session_factory,
+    init_db,
+)
 from app.schemas import AnswerIn, Task, TaskStatus
 
 logger = logging.getLogger("labmind.api")
 
 
 class TaskNotFoundError(Exception):
-    """Levée lorsqu'une tâche est inconnue ou déjà supprimée."""
+    """Levée lorsqu'une tâche est inconnue, expirée ou déjà supprimée."""
 
 
 class ReportNotReadyError(Exception):
     """Levée lorsque le téléchargement PDF est demandé avant l'état `done`."""
-
-
-@dataclass
-class TaskRecord:
-    """Enregistrement interne d'une tâche en cours ou terminée."""
-
-    state: AgentState
-    report_id: str | None = None
 
 
 def _cleanup_file(file_path: str | Path) -> None:
@@ -63,22 +60,45 @@ def _build_placeholder_pdf_bytes(task: Task) -> bytes:
 
 
 class TaskManager:
-    """Stockage thread-safe des tâches (sera persisté en base à l'Étape 7)."""
+    """Gestionnaire thread-safe des tâches persistées dans SQLite."""
 
     def __init__(
         self,
         settings: Settings,
         orchestrator_factory: Callable[[], AgentOrchestrator] | None = None,
         report_builder: Callable[[Task], bytes] | None = None,
+        repository: TaskRepository | None = None,
     ) -> None:
         self.settings = settings
         self._orchestrator_factory = orchestrator_factory or AgentOrchestrator
         self._report_builder = report_builder or _build_placeholder_pdf_bytes
         self._lock = threading.RLock()
-        self._records: dict[str, TaskRecord] = {}
+
+        if repository is None:
+            settings.ensure_dirs()
+            engine = create_db_engine(settings.resolved_database_url)
+            init_db(engine)
+            self._engine = engine
+            self._repository = TaskRepository(
+                create_session_factory(engine),
+                retention_seconds=settings.retention_seconds,
+            )
+        else:
+            self._engine = None
+            self._repository = repository
+
+    def close(self) -> None:
+        """Libère les connexions de base de données à l'arrêt du serveur."""
+        if self._engine is not None:
+            self._engine.dispose()
+
+    def purge_expired(self) -> int:
+        """Supprime les tâches dépassant la durée de conservation."""
+        with self._lock:
+            return self._repository.purge_expired_tasks()
 
     def create_task(self, original_filename: str, content: bytes) -> Task:
-        """Enregistre le fichier sous un nom technique UUID4 et crée la tâche."""
+        """Enregistre le fichier sous un nom technique UUID4 et crée la tâche en base."""
         self.settings.ensure_dirs()
         task_id = str(uuid.uuid4())
         safe_name = Path(original_filename or "document").name
@@ -93,88 +113,93 @@ class TaskManager:
             status=TaskStatus.received,
         )
         with self._lock:
-            self._records[task_id] = TaskRecord(state=state)
+            self._repository.purge_expired_tasks()
+            task = self._repository.save_state(state, file_deleted=False)
             logger.info("Tâche créée : %s", task_id)
-            return state.to_task()
+            return task
 
     def process_task(self, task_id: str) -> None:
-        """Exécute la boucle agentique sur une tâche reçue."""
+        """Exécute la boucle agentique et persiste le nouvel état."""
         with self._lock:
-            record = self._records.get(task_id)
-            if record is None:
+            loaded = self._repository.load_state(task_id)
+            if loaded is None:
                 return
-            state = record.state
+            state, report_id, _ = loaded
             state.status = TaskStatus.processing
+            self._repository.save_state(state, report_id=report_id)
 
         orchestrator = self._orchestrator_factory()
         orchestrator.run(state)
 
         with self._lock:
-            if state.status == TaskStatus.done and record.report_id is None:
-                record.report_id = f"r-{task_id[:8]}"
+            if state.status == TaskStatus.done and report_id is None:
+                report_id = f"r-{task_id[:8]}"
             if state.status in (TaskStatus.done, TaskStatus.error):
                 _cleanup_file(state.file_path)
+            self._repository.save_state(state, report_id=report_id)
             logger.info("Tâche %s -> statut %s", task_id, state.status.value)
 
     def get_task(self, task_id: str) -> Task | None:
-        """Retourne la vue API `Task` d'une tâche existante, ou None."""
+        """Retourne la vue API `Task` si existante et non expirée."""
         with self._lock:
-            record = self._records.get(task_id)
-            if record is None:
-                return None
-            return record.state.to_task(report_id=record.report_id)
+            return self._repository.get_task(task_id)
 
     def answer_task(self, task_id: str, answer_in: AnswerIn) -> Task:
-        """Soumet une réponse utilisateur et reprend l'exécution de l'agent."""
+        """Soumet une réponse utilisateur, reprend l'agent et sauvegarde en base."""
         with self._lock:
-            record = self._records.get(task_id)
-            if record is None:
+            loaded = self._repository.load_state(task_id)
+            if loaded is None:
                 raise TaskNotFoundError(task_id)
-            state = record.state
+            state, report_id, report_pdf_path = loaded
 
         orchestrator = self._orchestrator_factory()
         orchestrator.resume(state, answer_in)
 
         with self._lock:
-            if state.status == TaskStatus.done and record.report_id is None:
-                record.report_id = f"r-{task_id[:8]}"
+            if state.status == TaskStatus.done and report_id is None:
+                report_id = f"r-{task_id[:8]}"
             if state.status in (TaskStatus.done, TaskStatus.error):
                 _cleanup_file(state.file_path)
+            task = self._repository.save_state(
+                state,
+                report_id=report_id,
+                report_pdf_path=report_pdf_path,
+            )
             logger.info("Réponse traitée pour %s -> statut %s", task_id, state.status.value)
-            return state.to_task(report_id=record.report_id)
+            return task
 
     def get_report_pdf(self, task_id: str) -> tuple[bytes, str]:
         """Retourne (contenu_pdf, nom_fichier) si la tâche est terminée."""
         with self._lock:
-            record = self._records.get(task_id)
-            if record is None:
+            loaded = self._repository.load_state(task_id)
+            if loaded is None:
                 raise TaskNotFoundError(task_id)
-            if record.state.status != TaskStatus.done:
+            state, report_id, existing_pdf_path = loaded
+            if state.status != TaskStatus.done:
                 raise ReportNotReadyError(
                     "Le rapport PDF n'est disponible que lorsque la tâche est terminée."
                 )
-            if record.report_id is None:
-                record.report_id = f"r-{task_id[:8]}"
-            task_snapshot = record.state.to_task(report_id=record.report_id)
-            report_id = record.report_id
+            if report_id is None:
+                report_id = f"r-{task_id[:8]}"
+            task_snapshot = state.to_task(report_id=report_id)
 
         self.settings.ensure_dirs()
-        pdf_path = self.settings.reports_dir / f"{report_id}.pdf"
+        pdf_path = (
+            Path(existing_pdf_path)
+            if existing_pdf_path
+            else self.settings.reports_dir / f"{report_id}.pdf"
+        )
         if not pdf_path.is_file():
             pdf_bytes = self._report_builder(task_snapshot)
             pdf_path.write_bytes(pdf_bytes)
+            with self._lock:
+                self._repository.set_report_pdf_path(task_id, report_id, str(pdf_path))
         else:
             pdf_bytes = pdf_path.read_bytes()
+
         return pdf_bytes, f"labmind_rapport_{task_id[:8]}.pdf"
 
     def delete_task(self, task_id: str) -> bool:
-        """Supprime la tâche ainsi que les fichiers uploadés et rapports associés."""
+        """Supprime immédiatement la tâche en base ainsi que ses fichiers."""
         with self._lock:
-            record = self._records.pop(task_id, None)
-            if record is None:
-                return False
-            _cleanup_file(record.state.file_path)
-            if record.report_id:
-                _cleanup_file(self.settings.reports_dir / f"{record.report_id}.pdf")
-            logger.info("Tâche supprimée : %s", task_id)
-            return True
+            return self._repository.delete_task(task_id)

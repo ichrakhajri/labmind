@@ -29,6 +29,7 @@ LabMind ne pose aucun diagnostic et ne prescrit aucun traitement.
 ## Structure
     backend/app/core/            configuration (variables LABMIND_*)
     backend/app/api/             API FastAPI v1 (routes, gestionnaire de tâches, erreurs)
+    backend/app/database/        modèles SQLAlchemy, session SQLite (FK ON) et repository + purge 1 h
     backend/app/main.py          point d'entrée uvicorn et branchement RAG au démarrage
     backend/app/extraction/      PDF (texte + tableaux par page) et OCR Tesseract avec confiance
     backend/app/identification/  catalogue 6 catégories (21 paramètres), parsing et normalisation
@@ -44,7 +45,7 @@ LabMind ne pose aucun diagnostic et ne prescrit aucun traitement.
     evaluation/                  documents de test, vérités terrain et rapports d'évaluation
     docs/                        contrat API v1, archive Colab et décisions techniques
 
-## État du projet (fin de l'Étape 6)
+## État du projet (fin de l'Étape 7)
 Fait :
 - Backend modulaire complet couvrant les 6 catégories (21 paramètres), sans système expert.
 - RAG local (FAISS + `multilingual-e5-small` + Ollama `qwen2.5:1.5b` + contrôle d'ancrage).
@@ -52,8 +53,8 @@ Fait :
 - `detected_categories`, `evidence.page` et `confidence` calculés et exposés dans `Task`.
 - Dispositif d'évaluation séparée par champ dans `evaluation/`.
 - API FastAPI v1 complète (`POST /v1/tasks`, `GET`, `POST /answer`, `GET /report.pdf`, `DELETE`, OpenAPI).
+- Persistance SQLite (9 entités), suppression en cascade et purge automatique après 1 h.
 
 Pas encore fait :
-- Persistance SQLite et suppression automatique après 1 h (Étape 7).
-- Génération du rapport PDF final LabMind avec explications et sources citées (Étape 8).
+- Génération du rapport PDF final LabMind avec résultats, explications et sources citées (Étape 8).
 - Durcissement sécurité avancé, complément du corpus et intégration finale frontend (Étapes 9 à 10).

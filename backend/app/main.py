@@ -82,7 +82,7 @@ def create_runtime_app(
     enable_rag: bool | None = None,
     index_dir: Path = DEFAULT_INDEX_DIR,
 ) -> FastAPI:
-    """Crée l'application FastAPI avec chargement optionnel du RAG au démarrage."""
+    """Crée l'application FastAPI avec purge au démarrage et RAG optionnel."""
     active_settings = settings or get_settings()
     use_rag = _env_flag("LABMIND_ENABLE_RAG", True) if enable_rag is None else enable_rag
 
@@ -93,11 +93,16 @@ def create_runtime_app(
                 enable_rag=True,
                 index_dir=index_dir,
             )
+            fastapi_app.state.task_manager.close()
             fastapi_app.state.task_manager = TaskManager(
                 settings=active_settings,
                 orchestrator_factory=factory,
             )
-        yield
+        fastapi_app.state.task_manager.purge_expired()
+        try:
+            yield
+        finally:
+            fastapi_app.state.task_manager.close()
 
     fastapi_app = create_app(settings=active_settings)
     fastapi_app.router.lifespan_context = lifespan

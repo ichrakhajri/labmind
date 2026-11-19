@@ -60,6 +60,14 @@ class Settings:
     data_dir: Path = field(default_factory=lambda: Path(
         os.environ.get("LABMIND_DATA_DIR", BACKEND_DIR / "data")))
 
+    # Base de données et durée de conservation (défaut : 1 heure = 3600 s)
+    database_url: str | None = field(
+        default_factory=lambda: os.environ.get("LABMIND_DATABASE_URL") or None
+    )
+    retention_seconds: int = field(
+        default_factory=lambda: _env_int("LABMIND_RETENTION_SECONDS", 3600)
+    )
+
     # OCR
     tesseract_cmd: str | None = field(default_factory=_find_tesseract)
     ocr_language: str = field(default_factory=lambda: os.environ.get("LABMIND_OCR_LANG", "fra"))
@@ -88,6 +96,13 @@ class Settings:
     @property
     def reports_dir(self) -> Path:
         return self.data_dir / "reports"
+
+    @property
+    def resolved_database_url(self) -> str:
+        """URL SQLAlchemy active (SQLite dans data_dir par défaut)."""
+        if self.database_url:
+            return self.database_url
+        return f"sqlite:///{(self.data_dir / 'labmind.db').resolve().as_posix()}"
 
     def ensure_dirs(self) -> None:
         """Crée les dossiers de travail s'ils n'existent pas."""
